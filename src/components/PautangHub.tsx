@@ -28,7 +28,8 @@ import {
   StaffPermissions,
   TransactionRecord,
 } from '../types/pos';
-import { formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { brandConfig } from '../config/brandConfig';
 import { NativeModal } from './NativeModal';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -245,7 +246,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-surface-muted border border-theme p-2.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted block">
-                Total Pautang
+                Total {brandConfig.creditLabel}
               </span>
               <div className="text-base font-mono font-black text-amber-badge mt-0.5">
                 {formatPeso(totalOutstanding)}
@@ -461,7 +462,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
                     </span>
                   </div>
                   <div className="text-xs font-mono text-muted mt-0.5 truncate">
-                    Alias: {activeCustomer.alias} • Tel: {activeCustomer.phone} • Barangay Resident
+                    Alias: {activeCustomer.alias} • Tel: {activeCustomer.phone} • Active Account
                   </div>
                 </div>
               </div>
@@ -497,7 +498,10 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
                     {t('pautang.quick_presets')}
                   </label>
                   <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                    {[50, 100, 200, 500].map((amt) => (
+                    {((getGlobalCurrency() === '$' || getGlobalCurrency() === '€' || getGlobalCurrency() === '£')
+                      ? [5, 10, 20, 50]
+                      : [50, 100, 200, 500]
+                    ).map((amt) => (
                       <button
                         key={amt}
                         type="button"
@@ -511,7 +515,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
                             : 'bg-surface border-theme text-primary hover:border-slate-400'
                         }`}
                       >
-                        ₱{amt}
+                        +{getGlobalCurrency()}{amt}
                       </button>
                     ))}
                     <button
@@ -527,7 +531,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
                           : 'bg-surface border-theme text-emerald-btn hover:border-emerald-500'
                       }`}
                     >
-                      {t('pautang.full_balance')} (₱{activeCustomer.currentBalance})
+                      {t('pautang.full_balance')} ({formatCurrencyExact(activeCustomer.currentBalance)})
                     </button>
                   </div>
                 </div>
@@ -638,7 +642,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
                   />
 
                   <div className="flex items-center justify-between text-[11px] font-mono text-muted">
-                    <span>Min: ₱200</span>
+                    <span>Min: {formatCurrency(200)}</span>
                     <span>
                       {t('pautang.available_credit')}:{' '}
                       <strong className="text-emerald-btn font-bold">
@@ -647,7 +651,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
                         )}
                       </strong>
                     </span>
-                    <span>Max: ₱3,000</span>
+                    <span>Max: {formatCurrency(3000)}</span>
                   </div>
                 </div>
               ) : (
@@ -871,7 +875,7 @@ export const PautangHub: React.FC<PautangHubProps> = React.memo(({
 
             <div>
               <label className="text-[11px] font-bold text-muted block mb-1">
-                Credit Limit (₱)
+                Credit Limit ({getGlobalCurrency()})
               </label>
               <input
                 type="number"

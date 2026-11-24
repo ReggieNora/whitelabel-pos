@@ -9,7 +9,8 @@ import {
   UserCheck,
   Zap,
 } from 'lucide-react';
-import { formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { brandConfig } from '../config/brandConfig';
 import {
   buildSmsUri,
   CompletedSaleSummary,
@@ -100,7 +101,7 @@ export const SaleCompletedModal: React.FC<SaleCompletedModalProps> = ({
             {/* Ultra-Prominent Emerald CHANGE DUE (text-emerald-btn) */}
             <div className="text-center py-1">
               <span className="text-[11px] uppercase tracking-widest text-emerald-btn font-bold block">
-                CHANGE DUE (SUKLI)
+                CHANGE DUE
               </span>
               <div className="text-4xl font-mono font-black text-emerald-btn tracking-tight mt-0.5">
                 {formatPesoExact(transaction.changeGiven ?? 0)}

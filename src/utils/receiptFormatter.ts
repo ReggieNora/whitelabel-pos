@@ -1,4 +1,6 @@
 import { TransactionRecord } from '../types/pos';
+import { brandConfig } from '../config/brandConfig';
+import { getGlobalCurrency } from './currency';
 
 export interface CompletedSaleSummary {
   transaction: TransactionRecord;
@@ -11,8 +13,9 @@ export interface CompletedSaleSummary {
 
 export function formatPlaintextReceipt(order: CompletedSaleSummary): string {
   const { transaction, storeName, customerNewBalance, customerCreditLimit } = order;
+  const sym = getGlobalCurrency();
   const lines: string[] = [
-    storeName ? `${storeName} • pesOS` : 'pesOS Sari-Sari Store',
+    storeName ? `${storeName} • ${brandConfig.appName}` : `${brandConfig.appName} Store`,
     `Order #${transaction.id}`,
     `${transaction.createdAt}`,
     '------------------------',
@@ -20,28 +23,28 @@ export function formatPlaintextReceipt(order: CompletedSaleSummary): string {
 
   for (const item of transaction.items) {
     const lineSubtotal = (item.unitPrice * item.qty).toFixed(2);
-    lines.push(`${item.qty}x ${item.name}: P${lineSubtotal}`);
+    lines.push(`${item.qty}x ${item.name}: ${sym}${lineSubtotal}`);
   }
 
   lines.push('------------------------');
-  lines.push(`Total Due: P${transaction.totalAmount.toFixed(2)}`);
+  lines.push(`Total Due: ${sym}${transaction.totalAmount.toFixed(2)}`);
 
   if (transaction.type === 'CASH') {
     const tendered = (transaction.cashTendered ?? transaction.totalAmount).toFixed(2);
     const change = (transaction.changeGiven ?? 0).toFixed(2);
-    lines.push(`Amount Tendered: P${tendered}`);
-    lines.push(`Change Due: P${change}`);
+    lines.push(`Amount Tendered: ${sym}${tendered}`);
+    lines.push(`Change Due: ${sym}${change}`);
   } else {
-    lines.push(`Charged to Pautang (${transaction.customerName || 'Customer'})`);
+    lines.push(`Charged to ${brandConfig.creditLabel} (${transaction.customerName || 'Customer'})`);
     if (customerNewBalance !== undefined && customerCreditLimit !== undefined) {
       lines.push(
-        `New Balance: P${customerNewBalance.toFixed(2)} / P${customerCreditLimit.toFixed(2)}`
+        `New Balance: ${sym}${customerNewBalance.toFixed(2)} / ${sym}${customerCreditLimit.toFixed(2)}`
       );
     }
   }
 
   lines.push('------------------------');
-  lines.push('Salamat sa pagbili!');
+  lines.push('Thank you for your business!');
 
   return lines.join('\n');
 }

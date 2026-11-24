@@ -53,7 +53,7 @@ export function parseVoiceOrder(transcript: string, catalog: Product[]): ParsedV
 
   // Detect tendered cash: e.g. "paid 100", "bayad 200", "cash 500", "100 pesos"
   let tenderedCash: number | null = null;
-  const cashMatch = normalized.match(/(?:paid|bayad|cash|bill|tendered)\s*(?:₱|php)?\s*(\d{2,4})/i);
+  const cashMatch = normalized.match(/(?:paid|bayad|cash|bill|tendered)\s*(?:₱|php|\$|€|£|¥)?\s*(\d{1,5})/i);
   if (cashMatch) {
     tenderedCash = parseFloat(cashMatch[1]);
   }

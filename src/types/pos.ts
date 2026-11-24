@@ -54,7 +54,18 @@ export type CategoryId =
   | 'noodles'
   | 'tobacco'
   | 'rice'
-  | 'snacks';
+  | 'snacks'
+  // Industry-Agnostic Presets Categories
+  | 'packaged_goods'
+  | 'espresso'
+  | 'cold_drinks'
+  | 'pastries'
+  | 'food_combos'
+  | 'haircuts'
+  | 'styling'
+  | 'treatments'
+  | 'consultations'
+  | (string & {});
 
 export interface CategoryMeta {
   id: CategoryId;
@@ -68,7 +79,7 @@ export interface Product {
   sku: string;
   name: string;
   shortName: string;
-  category: Exclude<CategoryId, 'favorites'>;
+  category: Exclude<CategoryId, 'favorites'> | string;
   isFavorite: boolean;
   icon: string;
   accentColor: string;
@@ -210,6 +221,12 @@ export interface UserProfile {
 
 export type EnvironmentMode = 'DEMO' | 'LIVE';
 
+export type CatalogPresetType =
+  | 'RETAIL_CONVENIENCE'
+  | 'CAFE_QUICK_SERVICE'
+  | 'SALON_SERVICES'
+  | 'BLANK';
+
 export interface StoreProfile {
   id: string;
   storeName: string;
@@ -220,6 +237,8 @@ export interface StoreProfile {
   environment: EnvironmentMode;
   ownerId?: string;
   ownerEmail?: string;
+  currencySymbol?: string;
+  businessType?: CatalogPresetType | string;
 }
 
 export interface StoreStateSnapshot {
@@ -237,6 +256,8 @@ export interface LiveOnboardingPayload {
   storeName: string;
   ownerPin: string;
   preloadStarterCatalog: boolean;
+  catalogPreset?: CatalogPresetType;
+  currencySymbol?: string;
   ownerName?: string;
   ownerPhone?: string;
   barangayCity?: string;

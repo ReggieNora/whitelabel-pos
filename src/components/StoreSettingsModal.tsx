@@ -24,7 +24,8 @@ import {
   DEFAULT_MANAGER_PERMISSIONS,
 } from '../types/pos';
 import { NativeModal } from './NativeModal';
-import { triggerHapticFeedback } from '../utils/localDb';
+import { triggerHapticFeedback, getGlobalCurrency } from '../utils/localDb';
+import { brandConfig } from '../config/brandConfig';
 
 interface StoreSettingsModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ interface StoreSettingsModalProps {
   onSignOut: () => void;
   googleUser?: any;
   initialTab?: 'PROFILE' | 'STAFF';
+  onUpdateCurrency?: (symbol: string) => void;
 }
 
 export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
@@ -54,6 +56,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
   onSignOut,
   googleUser,
   initialTab = 'STAFF',
+  onUpdateCurrency,
 }) => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'STAFF'>(initialTab);
 
@@ -216,7 +219,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                       Store Cashiers &amp; Shift Workers
                     </h3>
                     <p className="text-xs text-muted">
-                      Assign 4-digit PINs and granular permissions for each tindero/tindera.
+                      Assign 4-digit PINs and granular permissions for each staff member.
                     </p>
                   </div>
 
@@ -376,7 +379,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                                   : 'bg-surface-muted text-muted line-through opacity-50'
                               }`}
                             >
-                              <Check className="w-2.5 h-2.5" /> Charge Pautang
+                              <Check className="w-2.5 h-2.5" /> Charge {brandConfig.creditLabel}
                             </span>
                             <span
                               className={`text-[10px] font-mono px-2 py-0.5 rounded-md flex items-center gap-1 ${
@@ -390,7 +393,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                               ) : (
                                 <Lock className="w-2.5 h-2.5" />
                               )}{' '}
-                              Settle Pautang
+                              Settle {brandConfig.creditLabel}
                             </span>
                             <span
                               className={`text-[10px] font-mono px-2 py-0.5 rounded-md flex items-center gap-1 ${
@@ -461,9 +464,9 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-theme">
                 <div>
-                  <span className="text-muted block text-[11px]">Location / Barangay:</span>
+                  <span className="text-muted block text-[11px]">Business Location / Branch:</span>
                   <span className="font-bold text-primary">
-                    {storeProfile.barangayCity || 'Local Store'}
+                    {storeProfile.barangayCity || 'Main Branch'}
                   </span>
                 </div>
                 <div>
@@ -473,6 +476,35 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                   </span>
                 </div>
               </div>
+              {/* Store Currency Selector */}
+              <div className="pt-2 border-t border-theme">
+                <span className="text-muted block text-[11px] mb-1.5 font-bold uppercase tracking-wider">
+                  Store Currency Setting:
+                </span>
+                <div className="flex items-center gap-2">
+                  {brandConfig.supportedCurrencies.map((sym) => {
+                    const isSelected = (storeProfile.currencySymbol || getGlobalCurrency()) === sym;
+                    return (
+                      <button
+                        key={sym}
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('tap');
+                          onUpdateCurrency?.(sym);
+                        }}
+                        className={`w-10 h-10 rounded-xl font-mono font-bold text-sm border transition flex items-center justify-center cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#006AFF] text-white border-[#006AFF] shadow-sm ring-2 ring-blue-400/40'
+                            : 'bg-surface border-theme text-primary hover:border-slate-400'
+                        }`}
+                      >
+                        {sym}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
             </div>
 
             <div className="pt-2 border-t border-theme flex justify-end">
@@ -581,7 +613,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                     }`}
                   >
                     <div className="text-xs font-bold flex items-center justify-between">
-                      <span>Cashier (Tindero)</span>
+                      <span>{brandConfig.cashierRoleLabel}</span>
                       {workerRole === 'cashier' && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5">Counter sales &amp; pautang charges</div>
@@ -632,7 +664,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                   <label className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 hover:border-slate-600 cursor-pointer transition">
                     <div>
                       <span className="text-xs text-white font-medium block">
-                        Record Pautang Charges
+                        Record {brandConfig.creditLabel} Charges
                       </span>
                       <span className="text-[11px] text-slate-400">Add sales to neighborhood suki credit ledger</span>
                     </div>
@@ -648,7 +680,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                   <label className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 hover:border-slate-600 cursor-pointer transition">
                     <div>
                       <span className="text-xs text-white font-medium block">
-                        Accept Pautang Payments
+                        Accept {brandConfig.creditLabel} Payments
                       </span>
                       <span className="text-[11px] text-slate-400">Mark debts as paid and log cash repayments</span>
                     </div>

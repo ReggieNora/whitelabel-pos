@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { CATEGORIES } from '../data/mockSariSariData';
 import { CartItem, CategoryId, Product, Role, StaffPermissions } from '../types/pos';
-import { formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { brandConfig } from '../config/brandConfig';
 import { useLanguage } from '../context/LanguageContext';
 
 interface CashierRegisterProps {
@@ -139,6 +140,106 @@ const CATEGORY_THEMES: Record<CategoryId | 'all', CategoryThemeConfig> = {
     tabBorder: 'border-b-2 border-indigo-600 dark:border-indigo-400',
     breadcrumbBadge: 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400',
   },
+  // Presets additions
+  packaged_goods: {
+    canvasBg: 'bg-slate-50/70 dark:bg-slate-950/40',
+    cardBorder: 'border-slate-500/30 dark:border-slate-500/30',
+    cardBorderHover: 'hover:border-slate-500/60',
+    activeRing: 'ring-2 ring-slate-500/40',
+    solidBadgeBg: 'bg-slate-600',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/20',
+    tabBorder: 'border-b-2 border-slate-600 dark:border-slate-400',
+    breadcrumbBadge: 'bg-slate-500/15 border border-slate-500/30 text-slate-600 dark:text-slate-400',
+  },
+  espresso: {
+    canvasBg: 'bg-amber-50/70 dark:bg-amber-950/40',
+    cardBorder: 'border-amber-700/30 dark:border-amber-700/30',
+    cardBorderHover: 'hover:border-amber-700/60',
+    activeRing: 'ring-2 ring-amber-700/40',
+    solidBadgeBg: 'bg-[#78350F]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-amber-700/10 text-amber-900 dark:text-amber-200 border border-amber-700/20',
+    tabBorder: 'border-b-2 border-amber-800 dark:border-amber-600',
+    breadcrumbBadge: 'bg-amber-700/15 border border-amber-700/30 text-amber-800 dark:text-amber-300',
+  },
+  cold_drinks: {
+    canvasBg: 'bg-cyan-50/70 dark:bg-cyan-950/40',
+    cardBorder: 'border-cyan-500/30 dark:border-cyan-500/30',
+    cardBorderHover: 'hover:border-cyan-500/60',
+    activeRing: 'ring-2 ring-cyan-500/40',
+    solidBadgeBg: 'bg-[#0891B2]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20',
+    tabBorder: 'border-b-2 border-cyan-600 dark:border-cyan-400',
+    breadcrumbBadge: 'bg-cyan-500/15 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400',
+  },
+  pastries: {
+    canvasBg: 'bg-yellow-50/70 dark:bg-yellow-950/40',
+    cardBorder: 'border-yellow-500/30 dark:border-yellow-500/30',
+    cardBorderHover: 'hover:border-yellow-500/60',
+    activeRing: 'ring-2 ring-yellow-500/40',
+    solidBadgeBg: 'bg-[#CA8A04]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border border-yellow-500/20',
+    tabBorder: 'border-b-2 border-yellow-600 dark:border-yellow-400',
+    breadcrumbBadge: 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400',
+  },
+  food_combos: {
+    canvasBg: 'bg-emerald-50/70 dark:bg-emerald-950/40',
+    cardBorder: 'border-emerald-500/30 dark:border-emerald-500/30',
+    cardBorderHover: 'hover:border-emerald-500/60',
+    activeRing: 'ring-2 ring-emerald-500/40',
+    solidBadgeBg: 'bg-[#059669]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20',
+    tabBorder: 'border-b-2 border-emerald-600 dark:border-emerald-400',
+    breadcrumbBadge: 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400',
+  },
+  haircuts: {
+    canvasBg: 'bg-indigo-50/70 dark:bg-indigo-950/40',
+    cardBorder: 'border-indigo-500/30 dark:border-indigo-500/30',
+    cardBorderHover: 'hover:border-indigo-500/60',
+    activeRing: 'ring-2 ring-indigo-500/40',
+    solidBadgeBg: 'bg-[#4F46E5]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20',
+    tabBorder: 'border-b-2 border-indigo-600 dark:border-indigo-400',
+    breadcrumbBadge: 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400',
+  },
+  styling: {
+    canvasBg: 'bg-pink-50/70 dark:bg-pink-950/40',
+    cardBorder: 'border-pink-500/30 dark:border-pink-500/30',
+    cardBorderHover: 'hover:border-pink-500/60',
+    activeRing: 'ring-2 ring-pink-500/40',
+    solidBadgeBg: 'bg-[#DB2777]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-pink-500/10 text-pink-700 dark:text-pink-300 border border-pink-500/20',
+    tabBorder: 'border-b-2 border-pink-600 dark:border-pink-400',
+    breadcrumbBadge: 'bg-pink-500/15 border border-pink-500/30 text-pink-600 dark:text-pink-400',
+  },
+  treatments: {
+    canvasBg: 'bg-purple-50/70 dark:bg-purple-950/40',
+    cardBorder: 'border-purple-500/30 dark:border-purple-500/30',
+    cardBorderHover: 'hover:border-purple-500/60',
+    activeRing: 'ring-2 ring-purple-500/40',
+    solidBadgeBg: 'bg-[#7C3AED]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20',
+    tabBorder: 'border-b-2 border-purple-600 dark:border-purple-400',
+    breadcrumbBadge: 'bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400',
+  },
+  consultations: {
+    canvasBg: 'bg-orange-50/70 dark:bg-orange-950/40',
+    cardBorder: 'border-orange-500/30 dark:border-orange-500/30',
+    cardBorderHover: 'hover:border-orange-500/60',
+    activeRing: 'ring-2 ring-orange-500/40',
+    solidBadgeBg: 'bg-[#EA580C]',
+    solidBadgeText: 'text-white',
+    accentBadge: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border border-orange-500/20',
+    tabBorder: 'border-b-2 border-orange-600 dark:border-orange-400',
+    breadcrumbBadge: 'bg-orange-500/15 border border-orange-500/30 text-orange-600 dark:text-orange-400',
+  },
 };
 
 // Square-style solid colored category folder tiles
@@ -195,10 +296,73 @@ const CATEGORY_FOLDER_TILES: CategoryFolderDef[] = [
   },
   {
     id: 'tobacco',
-    name: 'Tobacco & Tingi',
+    name: 'Tobacco & Candy',
     emoji: '🚬',
     bgClass: 'bg-[#D97706] hover:bg-amber-700',
     activeRing: 'ring-4 ring-amber-300',
+  },
+  {
+    id: 'packaged_goods',
+    name: 'General Goods',
+    emoji: '📦',
+    bgClass: 'bg-[#475569] hover:bg-slate-700',
+    activeRing: 'ring-4 ring-slate-300',
+  },
+  {
+    id: 'espresso',
+    name: 'Espresso',
+    emoji: '☕',
+    bgClass: 'bg-[#78350F] hover:bg-amber-900',
+    activeRing: 'ring-4 ring-amber-400',
+  },
+  {
+    id: 'cold_drinks',
+    name: 'Cold Drinks',
+    emoji: '🧋',
+    bgClass: 'bg-[#0891B2] hover:bg-cyan-700',
+    activeRing: 'ring-4 ring-cyan-300',
+  },
+  {
+    id: 'pastries',
+    name: 'Pastries',
+    emoji: '🥐',
+    bgClass: 'bg-[#CA8A04] hover:bg-yellow-700',
+    activeRing: 'ring-4 ring-yellow-300',
+  },
+  {
+    id: 'food_combos',
+    name: 'Combos & Toast',
+    emoji: '🥪',
+    bgClass: 'bg-[#059669] hover:bg-emerald-700',
+    activeRing: 'ring-4 ring-emerald-300',
+  },
+  {
+    id: 'haircuts',
+    name: 'Haircuts',
+    emoji: '✂️',
+    bgClass: 'bg-[#4F46E5] hover:bg-indigo-700',
+    activeRing: 'ring-4 ring-indigo-300',
+  },
+  {
+    id: 'styling',
+    name: 'Styling',
+    emoji: '💇',
+    bgClass: 'bg-[#DB2777] hover:bg-pink-700',
+    activeRing: 'ring-4 ring-pink-300',
+  },
+  {
+    id: 'treatments',
+    name: 'Treatments',
+    emoji: '💆',
+    bgClass: 'bg-[#7C3AED] hover:bg-purple-700',
+    activeRing: 'ring-4 ring-purple-300',
+  },
+  {
+    id: 'consultations',
+    name: 'Care & Consult',
+    emoji: '✨',
+    bgClass: 'bg-[#EA580C] hover:bg-orange-700',
+    activeRing: 'ring-4 ring-orange-300',
   },
 ];
 
@@ -330,17 +494,30 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
     [cart]
   );
 
-  const categoryTabList: { id: CategoryId | 'all'; label: string; emoji: string }[] = [
-    { id: 'all', label: t('register.all_items'), emoji: '📦' },
-    ...CATEGORIES.map((c) => ({ id: c.id, label: getCategory(c.id), emoji: c.emoji })),
-  ];
-
   const getCategoryItemCount = (catId: CategoryId) => {
     if (catId === 'favorites') {
       return products.filter((p) => p.isFavorite).length;
     }
     return products.filter((p) => p.category === catId).length;
   };
+
+  const relevantFolderTiles = useMemo(() => {
+    const matched = CATEGORY_FOLDER_TILES.filter((cat) => {
+      const count = getCategoryItemCount(cat.id);
+      return count > 0 || cat.id === activeCategory;
+    });
+    return matched.length > 0 ? matched : CATEGORY_FOLDER_TILES.slice(0, 4);
+  }, [products, activeCategory]);
+
+  const categoryTabList: { id: CategoryId | 'all'; label: string; emoji: string }[] = useMemo(() => {
+    const list: { id: CategoryId | 'all'; label: string; emoji: string }[] = [
+      { id: 'all', label: t('register.all_items'), emoji: '📦' },
+    ];
+    relevantFolderTiles.forEach((tile) => {
+      list.push({ id: tile.id, label: tile.name, emoji: tile.emoji });
+    });
+    return list;
+  }, [relevantFolderTiles, t]);
 
   const catalogScrollRef = useRef<HTMLDivElement>(null);
   const touchStartYRef = useRef<number>(0);
@@ -572,7 +749,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
 
             {/* High-Contrast Grid of Category & Utility Tiles */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-              {/* Utility Tile: [ ⚡ Custom ₱ Amount ] (First Slot) */}
+              {/* Utility Tile: [ ⚡ Custom Amount ] (First Slot) */}
               <button
                 type="button"
                 onClick={() => {
@@ -602,7 +779,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
               </button>
 
               {/* Square Colored Category Tiles */}
-              {CATEGORY_FOLDER_TILES.map((cat) => {
+              {relevantFolderTiles.map((cat) => {
                 const count = getCategoryItemCount(cat.id);
                 const isActive = activeCategory === cat.id;
 
@@ -755,7 +932,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                           </div>
                           {currentRole === 'OWNER' && (
                             <span className="text-[10px] font-mono text-white/70">
-                              c: ₱{product.wholesaleCost.toFixed(0)}
+                              c: {formatCurrency(product.wholesaleCost)}
                             </span>
                           )}
                         </div>
@@ -931,7 +1108,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
               </button>
             ) : (
               <div className="text-center py-2 text-[11px] font-mono text-muted bg-surface-muted rounded-xl border border-theme">
-                🔒 Pautang charging disabled for role
+                🔒 {brandConfig.creditLabel} charging disabled for role
               </div>
             )}
           </div>
@@ -1001,7 +1178,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
             </span>
           </div>
           <span className="font-mono font-bold text-xs text-muted">
-            ₱0.00
+            {formatCurrencyExact(0)}
           </span>
         </div>
       )}
@@ -1180,7 +1357,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                 </button>
               ) : (
                 <div className="text-center py-2 text-[11px] font-mono text-muted bg-surface-muted rounded-xl border border-theme">
-                  🔒 Pautang charging disabled for role
+                  🔒 {brandConfig.creditLabel} charging disabled for role
                 </div>
               )}
 
@@ -1214,7 +1391,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                   <Zap className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm text-primary">Custom ₱ Amount</h3>
+                  <h3 className="font-black text-sm text-primary">Custom Amount</h3>
                   <p className="text-[11px] text-muted">Add non-catalog charge to ticket</p>
                 </div>
               </div>
@@ -1247,7 +1424,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                         : 'bg-surface-muted border-theme text-primary hover:border-slate-400'
                     }`}
                   >
-                    +₱{amt}
+                    +{getGlobalCurrency()}{amt}
                   </button>
                 ))}
               </div>
@@ -1256,11 +1433,11 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
             {/* Amount Input */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-muted block mb-1">
-                Charge Amount (₱)
+                Charge Amount ({getGlobalCurrency()})
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-mono font-black text-muted">
-                  ₱
+                  {getGlobalCurrency()}
                 </span>
                 <input
                   type="number"

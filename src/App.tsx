@@ -24,6 +24,8 @@ import { InventoryHub } from './components/InventoryHub';
 import { OwnerDashboard } from './components/OwnerDashboard';
 import { PautangHub } from './components/PautangHub';
 import { PesOSLogo } from './components/PesOSLogo';
+import { brandConfig } from './config/brandConfig';
+import { setGlobalCurrency } from './utils/currency';
 import { SplashScreen } from './components/SplashScreen';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { useLanguage } from './context/LanguageContext';
@@ -104,6 +106,7 @@ import { supabase } from './utils/supabase';
 import {
   formatPesoExact,
   triggerHapticFeedback,
+  saveSnapshotToIndexedDB,
 } from './utils/localDb';
 import { CompletedSaleSummary } from './utils/receiptFormatter';
 import { ParsedVoiceCommand } from './utils/voiceParser';
@@ -220,6 +223,10 @@ export function App() {
   const [storeProfile, setStoreProfile] = useState<StoreProfile>(
     initialSnapshot.profile
   );
+
+  useEffect(() => {
+    setGlobalCurrency(storeProfile.currencySymbol || brandConfig.defaultCurrency);
+  }, [storeProfile.currencySymbol]);
   const [users, setUsers] = useState<UserProfile[]>(initialSnapshot.users);
   const [products, setProducts] = useState<Product[]>(initialSnapshot.products);
   const [customers, setCustomers] = useState<Customer[]>(
@@ -764,7 +771,17 @@ export function App() {
     clearActiveSession();
     clearActiveStoreSession();
     setIsAuthSplashOpen(true);
-    showToast('Signed out of pesOS.');
+    showToast(`Signed out of ${brandConfig.appName}.`);
+  };
+
+  const handleUpdateCurrency = (symbol: string) => {
+    setStoreProfile((prev) => {
+      const updated = { ...prev, currencySymbol: symbol };
+      saveSnapshotToIndexedDB(`${environmentMode === 'LIVE' ? 'live_' : 'demo_'}profile_v2`, updated);
+      return updated;
+    });
+    setGlobalCurrency(symbol);
+    showToast(`Store currency updated to ${symbol}`);
   };
 
   const handleCompleteOnboarding = async (payload: LiveOnboardingPayload) => {
@@ -1057,7 +1074,7 @@ export function App() {
             customer_id: options.customer.id,
             amount: subtotal,
             type: 'debt',
-            notes: `Pautang Sale: ${cart.map((i) => `${i.qty}x ${i.product.shortName}`).join(', ')}`,
+            notes: `${brandConfig.creditLabel} Sale: ${cart.map((i) => `${i.qty}x ${i.product.shortName}`).join(', ')}`,
             cashier_name: activeStaffMember.name,
             staff_id: activeStaffMember.id,
           },
@@ -1113,7 +1130,7 @@ export function App() {
         actorRole: currentUser.role,
         eventType: 'PAUTANG_CREDIT',
         severity: overrideUsed ? 'CRITICAL' : 'WARN',
-        summary: `${overrideUsed ? '[PIN OVERRIDE] ' : ''}Pautang ${formatPesoExact(subtotal)} → ${customer.name}`,
+        summary: `${overrideUsed ? '[PIN OVERRIDE] ' : ''}${brandConfig.creditLabel} ${formatPesoExact(subtotal)} → ${customer.name}`,
         detail: `New Balance: ${formatPesoExact(newBalance)} / Limit ${formatPesoExact(customer.creditLimit)}`,
       },
       ...prev,
@@ -1174,7 +1191,7 @@ export function App() {
         actorRole: currentUser.role,
         eventType: 'NEW_CUSTOMER',
         severity: 'INFO',
-        summary: `Added Pautang Customer: ${name}`,
+        summary: `Added Customer: ${name}`,
         detail: `Credit Limit: ${formatPesoExact(creditLimit)} • Phone: ${phone}`,
       },
       ...prev,
@@ -1381,7 +1398,7 @@ export function App() {
   }[] = [
     { id: 'REGISTER', label: 'Register', icon: ShoppingCart },
     { id: 'INVENTORY', label: 'Inventory', icon: Package },
-    { id: 'PAUTANG_BOOK', label: 'Pautang', icon: Users },
+    { id: 'PAUTANG_BOOK', label: brandConfig.creditLabel, icon: Users },
     { id: 'OWNER', label: 'Dashboard', icon: BarChart3 },
   ];
 
@@ -1426,7 +1443,7 @@ export function App() {
               title={
                 isOfflineMode
                   ? `Offline Mode (${pendingSyncCount} queued) — Tap to sync`
-                  : 'pesOS Online & Synced — Tap to simulate offline'
+                  : `${brandConfig.appName} Online & Synced — Tap to simulate offline`
               }
             >
               <PesOSLogo imageHeightClass="h-7 sm:h-8" />
@@ -1448,7 +1465,7 @@ export function App() {
           {/* Right: Language Switcher [ EN | CEB ] + Compact Theme Switcher [ ☀️ / 🌙 ] + Store Profile Dropdown / Demo Pill */}
           <div className="flex items-center gap-2 shrink-0">
             {/* 1. Language Toggle (EN | CEB) on the left */}
-            <LanguageSwitcher />
+            {brandConfig.enableLanguageToggle && <LanguageSwitcher />}
 
             {/* 2. Theme Toggle (Sun / Moon) in the middle */}
             <button
@@ -2208,6 +2225,7 @@ export function App() {
         onSignOut={handleSignOut}
         googleUser={googleUser}
         initialTab={storeSettingsInitialTab}
+        onUpdateCurrency={handleUpdateCurrency}
       />
 
       {/* Quick Cashier / Worker Switch Keypad Modal */}

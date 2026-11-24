@@ -1,4 +1,21 @@
 // Haptic & Audio tactile feedback engine + Local-First IndexedDB / LocalStorage store
+import {
+  formatCurrency,
+  formatCurrencyExact,
+  formatPeso,
+  formatPesoExact,
+  getGlobalCurrency,
+  setGlobalCurrency,
+} from './currency';
+
+export {
+  formatCurrency,
+  formatCurrencyExact,
+  formatPeso,
+  formatPesoExact,
+  getGlobalCurrency,
+  setGlobalCurrency,
+};
 
 let sharedAudioCtx: AudioContext | null = null;
 
@@ -142,18 +159,4 @@ export function loadSnapshotFromLocal<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-export function formatPeso(amount: number): string {
-  return `₱${amount.toLocaleString('en-PH', {
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-export function formatPesoExact(amount: number): string {
-  return `₱${amount.toLocaleString('en-PH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }

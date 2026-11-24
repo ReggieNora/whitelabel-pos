@@ -1,9 +1,9 @@
 {
-  "name": "TingiPOS — Sari-Sari Store POS",
-  "short_name": "TingiPOS",
+  "name": "AuraPOS — Universal Cloud Point of Sale",
+  "short_name": "AuraPOS",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B0F15",
-  "theme_color": "#00F2FE",
+  "theme_color": "#006AFF",
   "orientation": "portrait"
 }

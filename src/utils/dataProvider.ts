@@ -20,6 +20,8 @@ import {
 } from '../types/pos';
 import { formatPesoExact, loadSnapshotFromLocal, saveSnapshotToIndexedDB } from './localDb';
 import { registerNewStore, setActiveStoreSession } from './supabaseStoreService';
+import { getStarterProductsForPreset } from '../data/catalogPresets';
+import { brandConfig } from '../config/brandConfig';
 
 const ENV_MODE_KEY = 'tingipos_env_mode';
 const ACTIVE_SESSION_KEY = 'tingipos_active_session';
@@ -280,7 +282,8 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
   });
   const nowDateStr = `Today, ${nowTime}`;
 
-  const cleanStoreName = payload.storeName.trim() || "Aling Nena's Sari-Sari";
+  const selectedPreset = payload.catalogPreset || (payload.preloadStarterCatalog ? 'RETAIL_CONVENIENCE' : 'BLANK');
+  const cleanStoreName = payload.storeName.trim() || `${brandConfig.appName} Store`;
   const inferredOwnerName =
     payload.ownerName?.trim() ||
     (cleanStoreName.includes("'")
@@ -294,7 +297,9 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
     ownerPhone: payload.ownerPhone?.trim(),
     barangayLocation: payload.barangayCity?.trim(),
     pin: payload.ownerPin.trim() || '9999',
-    preloadStarterCatalog: Boolean(payload.preloadStarterCatalog),
+    preloadStarterCatalog: selectedPreset !== 'BLANK',
+    catalogPreset: selectedPreset,
+    currencySymbol: payload.currencySymbol || brandConfig.defaultCurrency,
     ownerId: payload.ownerId,
     ownerEmail: payload.ownerEmail,
   });
@@ -304,13 +309,15 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
   const storeProfile: StoreProfile = {
     id: storeId,
     storeName: cleanStoreName,
-    barangayCity: payload.barangayCity?.trim() || 'Local Barangay Store',
+    barangayCity: payload.barangayCity?.trim() || 'Main Branch',
     ownerPhone: payload.ownerPhone?.trim() || '',
     ownerName: inferredOwnerName,
     createdAt: nowDateStr,
     environment: 'LIVE',
     ownerId: payload.ownerId,
     ownerEmail: payload.ownerEmail,
+    currencySymbol: payload.currencySymbol || brandConfig.defaultCurrency,
+    businessType: selectedPreset,
   };
 
   const ownerUser: UserProfile = {
@@ -334,13 +341,13 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
       name: payload.cashierName.trim(),
       role: 'CASHIER',
       pin: cashierPin,
-      badge: 'Counter Cashier / Bantay',
+      badge: `${brandConfig.cashierRoleLabel}`,
     };
     users.unshift(cashierUser);
   }
 
-  const seededProducts = payload.preloadStarterCatalog
-    ? TOP_20_SARI_SARI_STARTER_ITEMS.map((item) => ({ ...item }))
+  const seededProducts = selectedPreset !== 'BLANK'
+    ? getStarterProductsForPreset(selectedPreset)
     : [];
 
   const openingCash = Math.max(0, Number(payload.openingDrawerCash) || 1000);
@@ -373,7 +380,7 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
     },
   ];
 
-  if (payload.preloadStarterCatalog) {
+  if (seededProducts.length > 0) {
     initialAuditLogs.unshift({
       id: `aud-${storeId}-init-2`,
       timestamp: nowDateStr,
@@ -381,7 +388,7 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
       actorRole: 'OWNER',
       eventType: 'OCR_STOCK_IN',
       severity: 'INFO',
-      summary: `Seeded 20 Popular Sari-Sari Starter Items`,
+      summary: `Pre-loaded ${seededProducts.length} items from ${selectedPreset.replace('_', ' ')} preset`,
       detail: `Pre-loaded ${seededProducts.length} items with standard retail prices into ${storeProfile.storeName}`,
     });
   }

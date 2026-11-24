@@ -35,7 +35,8 @@ import {
   StaffPermissions,
   TransactionRecord,
 } from '../types/pos';
-import { formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { brandConfig } from '../config/brandConfig';
 import { useLanguage } from '../context/LanguageContext';
 
 interface CashMovementEntry {
@@ -323,7 +324,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
             </div>
           </div>
           <div className="text-2xl font-mono font-black text-emerald-btn flex items-center gap-2">
-            <span>{canViewMargins ? formatPeso(netProfit) : '₱••••••'}</span>
+            <span>{canViewMargins ? formatCurrency(netProfit) : `${getGlobalCurrency()}••••••`}</span>
             {!canViewMargins && <span className="text-xs font-mono text-muted">(Locked)</span>}
           </div>
           <div className="text-xs text-emerald-btn font-mono font-bold flex items-center justify-between pt-1 border-t border-theme">
@@ -462,7 +463,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                   <strong className="text-primary">
                     {canViewMargins
                       ? formatPeso(deadStockItem.stockQty * deadStockItem.wholesaleCost)
-                      : '₱•••••• (Locked)'}
+                      : `${getGlobalCurrency()}•••••• (Locked)`}
                   </strong>{' '}
                   working capital. Run promo to liquidate.
                 </p>
@@ -475,7 +476,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                 }}
                 className="min-h-[40px] px-3.5 rounded-lg bg-[#006AFF] hover:bg-blue-600 text-white font-black text-xs uppercase tracking-wide shrink-0 shadow-sm transition active:scale-95 cursor-pointer"
               >
-                Promo -₱2
+                Promo -{getGlobalCurrency()}2
               </button>
             </div>
           )}
@@ -735,7 +736,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                       : 'bg-surface-muted text-muted hover:text-primary'
                   }`}
                 >
-                  📒 Pautang
+                  📒 {brandConfig.creditLabel}
                 </button>
               </div>
             </div>
@@ -822,9 +823,9 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                     <div className="bg-surface rounded-xl border border-theme p-4 shadow-sm space-y-3 font-mono text-xs">
                       <div className="text-center pb-2 border-b border-dashed border-theme space-y-0.5">
                         <h4 className="font-black text-sm uppercase tracking-wider text-primary">
-                          pesOS Official Receipt
+                          {brandConfig.appName} Official Receipt
                         </h4>
-                        <p className="text-[10px] text-muted">Sari-Sari Store Verified Register</p>
+                        <p className="text-[10px] text-muted">Verified Cloud POS Register</p>
                         <p className="text-[10px] text-muted">Order ID: {activeSelectedTx.id}</p>
                         <p className="text-[10px] text-muted">{activeSelectedTx.createdAt}</p>
                       </div>
@@ -1086,7 +1087,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                   <div className="space-y-2">
                     <div>
                       <label className="text-[11px] font-mono font-bold text-muted block mb-1">
-                        Amount (₱):
+                        Amount ({getGlobalCurrency()}):
                       </label>
                       <input
                         type="number"

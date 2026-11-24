@@ -11,7 +11,8 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Customer, Product, Role } from '../types/pos';
-import { formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { brandConfig } from '../config/brandConfig';
 import {
   ParsedVoiceCommand,
   parseVoiceOrder,
@@ -34,7 +35,10 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
   initialTendered,
   onCompleteCash,
 }) => {
-  const standardBills = [50, 100, 200, 500, 1000];
+  const curSymbol = getGlobalCurrency();
+  const standardBills = (curSymbol === '$' || curSymbol === '€' || curSymbol === '£')
+    ? [5, 10, 20, 50, 100]
+    : [50, 100, 200, 500, 1000];
   const smartPresets = useMemo(
     () => standardBills.filter((bill) => bill > subtotal),
     [subtotal]
@@ -137,7 +141,7 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
                         : 'bg-surface-muted border-theme text-primary hover:border-slate-400 active:scale-95'
                   }`}
                 >
-                  <span>₱{bill.toLocaleString()}</span>
+                  <span>{formatCurrency(bill)}</span>
                   {!disabled && (
                     <span
                       className={`text-[10px] font-semibold ${
@@ -165,7 +169,7 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
                 setTendered(val);
               }
             }}
-            placeholder="Or enter custom cash amount (₱)..."
+            placeholder={`Or enter custom cash amount (${getGlobalCurrency()})...`}
             className="w-full min-h-[48px] rounded-xl bg-surface-muted border border-theme px-3.5 font-mono text-sm text-primary focus:outline-none focus:border-[#2563EB]"
           />
         </div>
@@ -281,7 +285,7 @@ export const PautangCheckoutModal: React.FC<PautangModalProps> = ({
     <NativeModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Pautang • Community Credit"
+      title={`${brandConfig.creditLabel} • Customer Account`}
       subtitle={`Assign ${formatPesoExact(subtotal)} to customer credit ledger`}
       accentColor="amber"
     >
@@ -294,7 +298,7 @@ export const PautangCheckoutModal: React.FC<PautangModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search Aling Marites, Mang Boyong..."
+              placeholder="Search customer name or phone..."
               className="w-full min-h-[46px] pl-9 pr-3 rounded-xl bg-surface-muted border border-theme text-xs text-primary focus:outline-none focus:border-[#2563EB]"
             />
           </div>
@@ -329,7 +333,7 @@ export const PautangCheckoutModal: React.FC<PautangModalProps> = ({
               required
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Full Name / Alias (e.g., Mang Tonio)"
+              placeholder="Full Name / Customer Name"
               className="w-full min-h-[44px] rounded-xl bg-surface border border-theme px-3 text-xs text-primary"
             />
             <div className="grid grid-cols-2 gap-2">
@@ -342,7 +346,7 @@ export const PautangCheckoutModal: React.FC<PautangModalProps> = ({
               />
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-muted font-mono">
-                  Limit ₱
+                  Limit {getGlobalCurrency()}
                 </span>
                 <input
                   type="number"
@@ -525,8 +529,8 @@ export const PautangCheckoutModal: React.FC<PautangModalProps> = ({
           <UserCheck className="w-5 h-5 stroke-[2.25]" />
           <span>
             {exceedsCeiling
-              ? `Confirm Override Pautang (${formatPesoExact(subtotal)})`
-              : `Confirm Pautang • ${selectedCustomer?.name || 'Customer'}`}
+              ? `Confirm Override ${brandConfig.creditLabel} (${formatCurrencyExact(subtotal)})`
+              : `Confirm ${brandConfig.creditLabel} • ${selectedCustomer?.name || 'Customer'}`}
           </span>
         </button>
       </div>
@@ -678,7 +682,7 @@ export const VoiceDictationModal: React.FC<VoiceModalProps> = ({
               <strong className="text-primary">
                 {parsed.suggestedPaymentMethod === 'PAUTANG' ? 'PAUTANG' : 'CASH'}
               </strong>
-              {parsed.tenderedCash ? ` (Bill: ₱${parsed.tenderedCash})` : ''}
+              {parsed.tenderedCash ? ` (Bill: ${formatCurrency(parsed.tenderedCash)})` : ''}
             </span>
             {parsedChange !== null && (
               <span className="font-mono font-bold text-emerald-btn">

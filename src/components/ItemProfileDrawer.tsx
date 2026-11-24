@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Product, CategoryId, EnvironmentMode } from '../types/pos';
+import { getGlobalCurrency, formatCurrencyExact } from '../utils/localDb';
 import { CATEGORIES } from '../data/mockSariSariData';
 import { uploadProductImage } from '../utils/supabaseStorage';
 import { 
@@ -406,7 +407,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                   {t('item_profile.selling_price')} <span className="text-rose-400">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">{getGlobalCurrency()}</span>
                   <input
                     type="number"
                     step="0.25"
@@ -425,7 +426,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                   {!canViewMargins && <span className="text-[10px] text-amber-400 font-mono">🔒 Restricted</span>}
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">{getGlobalCurrency()}</span>
                   {canViewMargins ? (
                     <input
                       type="number"
@@ -465,7 +466,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                 </div>
                 <div className="text-right">
                   <span className="text-base font-extrabold tracking-tight">
-                    {isProfit ? '₱' : '-₱'}{Math.abs(kita).toFixed(2)}
+                    {isProfit ? getGlobalCurrency() : `-${getGlobalCurrency()}`}{Math.abs(kita).toFixed(2)}
                   </span>
                   <span className="text-xs font-semibold ml-1.5 opacity-90">
                     ({marginPct.toFixed(1)}% margin)

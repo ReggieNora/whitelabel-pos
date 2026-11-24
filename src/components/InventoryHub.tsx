@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { CATEGORIES, OCR_INVOICE_PRESETS } from '../data/mockSariSariData';
 import { EnvironmentMode, OcrInvoicePreset, Product, Role, StaffPermissions } from '../types/pos';
-import { formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
 import { NativeModal } from './NativeModal';
 import { ItemProfileDrawer } from './ItemProfileDrawer';
 import { useLanguage } from '../context/LanguageContext';
@@ -506,7 +506,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     {!canViewMargins && <Lock className="w-3 h-3 text-amber-500" />}
                   </span>
                   <div className="text-2xl font-mono font-black text-primary mt-1">
-                    {canViewMargins ? formatPesoExact(selectedProduct.wholesaleCost) : '₱••••'}
+                    {canViewMargins ? formatCurrencyExact(selectedProduct.wholesaleCost) : `${getGlobalCurrency()}••••`}
                   </div>
                   <span className="text-[10px] font-mono text-muted block mt-1">
                     {canViewMargins ? 'Supplier unit cost' : 'Cost hidden 🔒'}
@@ -653,7 +653,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-bold text-muted block mb-1">
-                          Retail Selling Price (SRP ₱)
+                          Retail Selling Price (SRP {getGlobalCurrency()})
                         </label>
                         <input
                           type="number"
@@ -680,7 +680,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     {currentRole === 'OWNER' && (
                       <div>
                         <label className="text-xs font-bold text-muted block mb-1">
-                          Wholesale Cost (₱) — Owner Only
+                          Wholesale Cost ({getGlobalCurrency()}) — Owner Only
                         </label>
                         <input
                           type="number"
@@ -875,7 +875,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[11px] font-bold text-muted block mb-1">
-                      Selling Price (₱)
+                      Selling Price ({getGlobalCurrency()})
                     </label>
                     <input
                       type="number"
@@ -987,7 +987,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                       <div className="text-[10px] font-mono text-muted">
                         Unit Cost: ₱{row.wholesaleUnitCost.toFixed(2)} → Retail:{' '}
                         <strong className="text-emerald-btn">
-                          ₱{row.suggestedRetailPrice.toFixed(2)}
+                          {formatCurrencyExact(row.suggestedRetailPrice)}
                         </strong>{' '}
                         (+{margin}%)
                       </div>

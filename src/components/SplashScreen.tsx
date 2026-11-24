@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PesOSLogo } from './PesOSLogo';
+import { brandConfig } from '../config/brandConfig';
 
 interface SplashScreenProps {
   onComplete?: () => void;
@@ -132,7 +133,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
       {/* Footer Section: Terminal Version & Tap to Skip Hint */}
       <div className="pb-8 px-4 flex flex-col items-center text-center space-y-1">
         <div className="text-[11px] text-slate-500 font-mono tracking-wider">
-          pesOS v1.0 • Ready for Counter
+          {brandConfig.appName} v1.0 • Ready for Counter
         </div>
         <div className="text-[10px] text-slate-600 font-mono">
           Tap anywhere to skip

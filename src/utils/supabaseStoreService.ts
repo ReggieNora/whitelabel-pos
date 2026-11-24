@@ -12,6 +12,8 @@ import {
   DEFAULT_MANAGER_PERMISSIONS,
 } from '../types/pos';
 import { TOP_20_SARI_SARI_STARTER_ITEMS } from '../data/mockSariSariData';
+import { CatalogPresetType } from '../types/pos';
+import { getStarterProductsForPreset } from '../data/catalogPresets';
 
 export function mapRowToProduct(p: any, existing?: Product): Product {
   return {
@@ -37,6 +39,8 @@ export function mapRowToProduct(p: any, existing?: Product): Product {
 }
 
 export interface StoreRecord {
+  currency_symbol?: string | null;
+  business_type?: string | null;
   id: string;
   owner_id?: string | null;
   owner_email?: string | null;
@@ -51,6 +55,8 @@ export interface StoreRecord {
 }
 
 export interface NewStorePayload {
+  catalogPreset?: CatalogPresetType;
+  currencySymbol?: string;
   storeName: string;
   ownerName: string;
   ownerPhone?: string;
@@ -207,7 +213,7 @@ export async function fetchStoreForUser(
 
     if (matches && matches.length > 0) {
       const match = matches[0] as StoreRecord;
-      setActiveStoreSession(match.id, match.store_name || match.name || 'Sari-Sari Store', match);
+      setActiveStoreSession(match.id, match.store_name || match.name || 'Cloud POS Store', match);
       return { store: match };
     }
 
@@ -300,34 +306,38 @@ export async function registerNewStore(payload: NewStorePayload): Promise<{
       finalStore = { ...finalStore, ...insertedStore } as StoreRecord;
     }
 
-    // Batch insert starter catalog if selected
-    if (payload.preloadStarterCatalog) {
+    // Batch insert starter catalog based on selected preset
+    const preset: CatalogPresetType = payload.catalogPreset || (payload.preloadStarterCatalog ? 'RETAIL_CONVENIENCE' : 'BLANK');
+    if (preset !== 'BLANK') {
       try {
-        const starterRows = TOP_20_SARI_SARI_STARTER_ITEMS.map((item) => ({
-          store_id: finalStore.id,
-          user_id: payload.ownerId || null,
-          name: item.name,
-          category: item.category,
-          unit: item.unit,
-          retail_price: item.sellingPrice,
-          cost_price: item.wholesaleCost,
-          stock: item.stockQty,
-          min_alert: item.lowStockThreshold,
-          is_favorite: item.isFavorite,
-          image_url: item.imageUrl || null,
-        }));
+        const starterItems = getStarterProductsForPreset(preset);
+        if (starterItems.length > 0) {
+          const starterRows = starterItems.map((item) => ({
+            store_id: finalStore.id,
+            user_id: payload.ownerId || null,
+            name: item.name,
+            category: item.category,
+            unit: item.unit,
+            retail_price: item.sellingPrice,
+            cost_price: item.wholesaleCost,
+            stock: item.stockQty,
+            min_alert: item.lowStockThreshold,
+            is_favorite: item.isFavorite,
+            image_url: item.imageUrl || null,
+          }));
 
-        const { error: batchErr } = await supabase
-          .from('products')
-          .insert(starterRows);
+          const { error: batchErr } = await supabase
+            .from('products')
+            .insert(starterRows);
 
-        if (batchErr) {
-          // Retry without user_id / store_id if columns not yet migrated
-          const rowsClean = starterRows.map(({ user_id, ...rest }) => rest);
-          const { error: retryErr } = await supabase.from('products').insert(rowsClean);
-          if (retryErr && retryErr.message?.includes('store_id')) {
-            const rowsNoStore = rowsClean.map(({ store_id, ...r }) => r);
-            await supabase.from('products').insert(rowsNoStore);
+          if (batchErr) {
+            // Retry without user_id / store_id if columns not yet migrated
+            const rowsClean = starterRows.map(({ user_id, ...rest }) => rest);
+            const { error: retryErr } = await supabase.from('products').insert(rowsClean);
+            if (retryErr && retryErr.message?.includes('store_id')) {
+              const rowsNoStore = rowsClean.map(({ store_id, ...r }) => r);
+              await supabase.from('products').insert(rowsNoStore);
+            }
           }
         }
       } catch (err) {

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { USERS } from '../data/mockSariSariData';
 import { ShiftRecord, UserProfile } from '../types/pos';
-import { formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
 import { NativeModal } from './NativeModal';
 
 interface ShiftHandoverModalProps {
@@ -221,7 +221,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
 
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted block mb-1.5">
-                Physical Cash Counted in Drawer (₱)
+                Physical Cash Counted in Drawer ({getGlobalCurrency()})
               </label>
               <input
                 type="number"
@@ -236,7 +236,7 @@ export const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                   onClick={() => setBlindCashInput(String(activeShift.expectedDrawerCash - 45))}
                   className="px-2.5 py-1.5 rounded-lg bg-red-500/15 border border-red-500/40 text-red-500 font-mono text-xs font-bold"
                 >
-                  Simulate -₱45 Shortage
+                  Simulate -{getGlobalCurrency()}45 Shortage
                 </button>
                 <button
                   type="button"

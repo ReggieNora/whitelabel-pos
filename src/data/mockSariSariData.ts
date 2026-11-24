@@ -1,3 +1,4 @@
+import { brandConfig } from '../config/brandConfig';
 import {
   AuditLogEntry,
   CategoryMeta,
@@ -697,7 +698,7 @@ export const INITIAL_SHIFTS: ShiftRecord[] = [
     blindCountedCash: 3140.0,
     discrepancy: -45.0,
     status: 'CLOSED_DISCREPANCY',
-    notes: 'Blind count shortage of ₱45.00 flagged to Owner audit log.',
+    notes: 'Blind count shortage of $45.00 flagged to Owner audit log.',
   },
 ];
 
@@ -933,8 +934,8 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorRole: 'CASHIER',
     eventType: 'BLIND_COUNT_MISMATCH',
     severity: 'CRITICAL',
-    summary: 'Shift Handover Shortage: -₱45.00',
-    detail: 'Expected Drawer: ₱3,185.00 | Blind Count Submitted: ₱3,140.00',
+    summary: 'Shift Handover Shortage: -$45.00',
+    detail: 'Expected Drawer: $3,185.00 | Blind Count Submitted: $3,140.00',
   },
   {
     id: 'aud-102',
@@ -943,8 +944,8 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorRole: 'CASHIER',
     eventType: 'PAUTANG_CREDIT',
     severity: 'WARN',
-    summary: 'Recorded ₱140.00 Pautang to Aling Marites',
-    detail: 'New Balance: ₱350.00 / ₱500.00 Credit Limit (Near Limit)',
+    summary: 'Recorded $140.00 Customer Credit to Marites',
+    detail: 'New Balance: $350.00 / $500.00 Credit Limit (Near Limit)',
   },
   {
     id: 'aud-103',
@@ -953,8 +954,8 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorRole: 'CASHIER',
     eventType: 'PAUTANG_REPAYMENT',
     severity: 'INFO',
-    summary: 'Collected ₱100.00 Partial Repayment from Aling Marites',
-    detail: 'Balance reduced to ₱350.00',
+    summary: 'Collected $100.00 Partial Repayment from Marites',
+    detail: 'Balance reduced to $350.00',
   },
 ];
 
@@ -1041,13 +1042,14 @@ export const OCR_INVOICE_PRESETS: OcrInvoicePreset[] = [
 ];
 
 export const DEMO_STORE_PROFILE: StoreProfile = {
-  id: 'store-demo-pesos',
-  storeName: 'pesOS Demo Store',
-  barangayCity: 'Brgy. San Antonio, Quezon City',
-  ownerPhone: '0917-555-0199',
-  ownerName: 'Bossing',
+  id: 'store-demo-aurapos',
+  storeName: `${brandConfig.appName} Demo Store`,
+  barangayCity: 'Flagship Store / Branch #1',
+  ownerPhone: '+1-555-0199',
+  ownerName: 'Store Manager',
   createdAt: 'Demo Environment',
   environment: 'DEMO',
+  currencySymbol: brandConfig.defaultCurrency,
 };
 
 // Top 20 popular Filipino Sari-Sari store starter items (Coke, instant noodles, coffee, rice) with standard retail prices

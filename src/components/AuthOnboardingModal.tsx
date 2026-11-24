@@ -18,6 +18,9 @@ import {
   Zap,
 } from 'lucide-react';
 import { TOP_20_SARI_SARI_STARTER_ITEMS } from '../data/mockSariSariData';
+import { CatalogPresetType } from '../types/pos';
+import { brandConfig } from '../config/brandConfig';
+import { PRESET_OPTIONS, getStarterProductsForPreset } from '../data/catalogPresets';
 import {
   EnvironmentMode,
   LiveOnboardingPayload,
@@ -81,6 +84,8 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
   const [barangayLocation, setBarangayLocation] = useState('');
   const [ownerPhone, setOwnerPhone] = useState('');
   const [preloadCatalog, setPreloadCatalog] = useState(true);
+  const [selectedPreset, setSelectedPreset] = useState<CatalogPresetType>('RETAIL_CONVENIENCE');
+  const [currencySymbol, setCurrencySymbol] = useState<string>(brandConfig.defaultCurrency);
 
   // Wizard Screen 2: Create Owner PIN + Quick Confirmation
   const [pinStage, setPinStage] = useState<PinStage>('CREATE');
@@ -217,12 +222,14 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
     setIsLoading(true);
     try {
       await onCompleteOnboarding({
-        storeName: storeName.trim() || "Aling Nena's Sari-Sari",
+        storeName: storeName.trim() || `${brandConfig.appName} Store`,
         ownerName: ownerName.trim() || 'Store Owner',
         ownerPhone: ownerPhone.trim() || undefined,
         barangayCity: barangayLocation.trim() || undefined,
         ownerPin: firstPin || '9999',
-        preloadStarterCatalog: preloadCatalogParam,
+        preloadStarterCatalog: selectedPreset !== 'BLANK',
+        catalogPreset: selectedPreset,
+        currencySymbol,
         ownerId: googleUser?.id,
         ownerEmail: googleUser?.email,
       });
@@ -243,7 +250,9 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
         ownerName: ownerName.trim() || 'Store Owner',
         barangayCity: barangayLocation.trim() || undefined,
         ownerPin: '9999',
-        preloadStarterCatalog: preloadCatalog,
+        preloadStarterCatalog: selectedPreset !== 'BLANK',
+        catalogPreset: selectedPreset,
+        currencySymbol,
         ownerId: googleUser?.id,
         ownerEmail: googleUser?.email,
       });
@@ -492,7 +501,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       required
                       value={storeName}
                       onChange={(e) => setStoreName(e.target.value)}
-                      placeholder="e.g., Aling Nena's Sari-Sari"
+                      placeholder="e.g. Downtown Flagship Store"
                       className="w-full min-h-[48px] px-3.5 rounded-xl bg-surface-muted border-2 border-theme focus:border-[#2563EB] text-sm font-bold text-primary placeholder:text-muted/60 focus:outline-none transition"
                     />
                   </div>
@@ -526,13 +535,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-1">
-                      Barangay / Location
+                      Business Location / Branch
                     </label>
                     <input
                       type="text"
                       value={barangayLocation}
                       onChange={(e) => setBarangayLocation(e.target.value)}
-                      placeholder="e.g., Brgy. San Antonio, Pasig"
+                      placeholder="e.g. Suite 400, Market St / Branch #1"
                       className="w-full min-h-[44px] px-3.5 rounded-xl bg-surface-muted border border-theme focus:border-[#2563EB] text-xs font-semibold text-primary placeholder:text-muted/60 focus:outline-none transition"
                     />
                   </div>
@@ -646,71 +655,89 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               </div>
             )}
 
-            {/* SCREEN 3: "Stock Your Shelves" */}
+            {/* SCREEN 3: "Select Industry Catalog Preset" */}
             {screen === 3 && (
               <div className="space-y-4 pt-1">
                 <div className="space-y-1.5">
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-btn/20 border border-emerald-btn/50 text-emerald-btn flex items-center justify-center">
+                  <div className="w-11 h-11 rounded-2xl bg-blue-500/15 border border-blue-500/40 text-[#2563EB] flex items-center justify-center">
                     <PackageCheck className="w-6 h-6" />
                   </div>
                   <h2 className="text-xl font-black text-primary tracking-tight pt-1">
-                    Stock Your Shelves
+                    Select Business Catalog Preset
                   </h2>
                   <p className="text-xs text-muted">
-                    Store <strong className="text-primary">{storeName}</strong>{' '}
-                    is ready! How would you like to start your inventory?
+                    Choose a starter catalog preset for <strong className="text-primary">{storeName}</strong>:
                   </p>
                 </div>
 
-                {/* Clean Decision Card */}
-                <div className="rounded-2xl bg-surface-muted border border-theme p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-btn/20 border border-emerald-btn/40 text-emerald-btn font-mono font-bold text-[10px] uppercase">
-                      Recommended Starter Pack
-                    </span>
-                    <span className="text-xs font-mono font-bold text-muted">
-                      20 Items
-                    </span>
-                  </div>
-
-                  <p className="text-sm font-bold text-primary leading-snug">
-                    Load 20 popular Sari-Sari items (Coke, instant noodles,
-                    coffee, rice) with standard retail prices?
-                  </p>
-
-                  <div className="flex flex-wrap gap-1.5 pt-0.5">
-                    {TOP_20_SARI_SARI_STARTER_ITEMS.slice(0, 8).map((item) => (
-                      <span
-                        key={item.id}
-                        className="px-2 py-0.5 rounded-lg bg-surface border border-theme text-[10px] font-mono font-bold text-primary"
+                {/* Industry Preset Selector Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {PRESET_OPTIONS.map((preset) => {
+                    const isSelected = selectedPreset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('tap');
+                          setSelectedPreset(preset.id);
+                        }}
+                        className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-500/10 border-[#2563EB] ring-2 ring-[#2563EB]/30'
+                            : 'bg-surface-muted border-theme hover:border-slate-400 opacity-90'
+                        }`}
                       >
-                        {item.icon} {item.shortName} ({formatPeso(item.sellingPrice)})
-                      </span>
+                        <span className="text-2xl shrink-0 mt-0.5">{preset.icon}</span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-primary flex items-center justify-between">
+                            <span>{preset.title}</span>
+                            {isSelected && <Check className="w-4 h-4 text-[#2563EB]" />}
+                          </div>
+                          <div className="text-[11px] text-muted leading-tight mt-1">
+                            {preset.tagline}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Currency Selector */}
+                <div className="pt-2 border-t border-theme">
+                  <label className="block text-xs font-mono font-bold uppercase tracking-wider text-muted mb-1.5">
+                    Store Currency
+                  </label>
+                  <div className="flex gap-2">
+                    {brandConfig.supportedCurrencies.map((cur) => (
+                      <button
+                        key={cur}
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('tap');
+                          setCurrencySymbol(cur);
+                        }}
+                        className={`w-10 h-10 rounded-xl font-bold font-mono text-sm border transition flex items-center justify-center cursor-pointer ${
+                          currencySymbol === cur
+                            ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-sm'
+                            : 'bg-surface-muted border-theme text-primary hover:border-slate-400'
+                        }`}
+                      >
+                        {cur}
+                      </button>
                     ))}
-                    <span className="px-2 py-0.5 rounded-lg bg-surface border border-theme text-[10px] font-mono font-bold text-emerald-btn">
-                      +12 more
-                    </span>
                   </div>
                 </div>
 
-                {/* Two Full-Width Decision Buttons */}
-                <div className="space-y-2.5 pt-1">
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => handleFinishOnboarding(true)}
-                    className="w-full min-h-[58px] rounded-2xl bg-emerald-btn hover:opacity-95 font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition"
+                    disabled={isLoading}
+                    className="w-full min-h-[54px] rounded-2xl bg-[#2563EB] hover:bg-blue-700 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition cursor-pointer"
                   >
-                    <Check className="w-5 h-5 stroke-[2.75]" />
-                    <span>✅ Yes, Pre-load Starter Catalog</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleFinishOnboarding(false)}
-                    className="w-full min-h-[52px] rounded-2xl bg-surface-muted border border-theme hover:border-[#2563EB] text-primary font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition"
-                  >
-                    <Zap className="w-4 h-4 text-[#2563EB]" />
-                    <span>⚡ Start with Empty Store</span>
+                    <Rocket className="w-5 h-5 stroke-[2.5]" />
+                    <span>{isLoading ? 'Setting Up Store...' : 'Launch Store'}</span>
                   </button>
                 </div>
               </div>
@@ -982,7 +1009,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     required
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
-                    placeholder="e.g. Aling Nena's Sari-Sari Store"
+                    placeholder="e.g. Downtown Flagship Store"
                     className="w-full h-12 pl-10 pr-3 rounded-2xl bg-surface-muted border border-theme focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 text-primary font-bold text-sm outline-none transition"
                   />
                   <Store className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -994,7 +1021,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                   htmlFor="google-location"
                   className="block text-xs font-mono font-bold uppercase tracking-wider text-muted mb-1.5"
                 >
-                  Barangay / Location
+                  Business Location / Branch
                 </label>
                 <div className="relative">
                   <input
@@ -1002,28 +1029,75 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     type="text"
                     value={barangayLocation}
                     onChange={(e) => setBarangayLocation(e.target.value)}
-                    placeholder="e.g. Brgy. Poblacion, Cebu City"
+                    placeholder="e.g. Suite 400, Market St / Branch #1"
                     className="w-full h-12 pl-10 pr-3 rounded-2xl bg-surface-muted border border-theme focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 text-primary font-medium text-sm outline-none transition"
                   />
                   <MapPin className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-surface-muted border border-theme space-y-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={preloadCatalog}
-                    onChange={(e) => setPreloadCatalog(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#2563EB] focus:ring-0 cursor-pointer"
-                  />
-                  <span className="text-xs font-bold text-primary">
-                    Pre-load Top 20 Sari-Sari Starter Items
-                  </span>
+              {/* Business Type / Catalog Preset Selector */}
+              <div>
+                <label className="block text-xs font-mono font-bold uppercase tracking-wider text-muted mb-2">
+                  Business Type / Catalog Preset
                 </label>
-                <p className="text-[11px] text-muted pl-6">
-                  Includes Nescafe 3in1, Kopiko, Silver Swan, Lucky Me, and standard retail SRPs.
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {PRESET_OPTIONS.map((preset) => {
+                    const isSelected = selectedPreset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback('tap');
+                          setSelectedPreset(preset.id);
+                        }}
+                        className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-500/10 border-[#2563EB] ring-2 ring-[#2563EB]/30'
+                            : 'bg-surface-muted border-theme hover:border-slate-400 opacity-90'
+                        }`}
+                      >
+                        <span className="text-xl shrink-0 mt-0.5">{preset.icon}</span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-primary flex items-center justify-between">
+                            <span>{preset.title}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#2563EB]" />}
+                          </div>
+                          <div className="text-[11px] text-muted leading-tight mt-0.5">
+                            {preset.tagline}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Currency Selector */}
+              <div>
+                <label className="block text-xs font-mono font-bold uppercase tracking-wider text-muted mb-1.5">
+                  Store Currency
+                </label>
+                <div className="flex gap-2">
+                  {brandConfig.supportedCurrencies.map((cur) => (
+                    <button
+                      key={cur}
+                      type="button"
+                      onClick={() => {
+                        triggerHapticFeedback('tap');
+                        setCurrencySymbol(cur);
+                      }}
+                      className={`w-10 h-10 rounded-xl font-bold font-mono text-sm border transition flex items-center justify-center cursor-pointer ${
+                        currencySymbol === cur
+                          ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-sm'
+                          : 'bg-surface-muted border-theme text-primary hover:border-slate-400'
+                      }`}
+                    >
+                      {cur}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button
