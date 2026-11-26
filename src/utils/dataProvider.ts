@@ -1,8 +1,6 @@
 import {
   DEMO_STORE_PROFILE,
   INITIAL_AUDIT_LOGS,
-  INITIAL_CREDIT_PAYMENTS,
-  INITIAL_CUSTOMERS,
   INITIAL_PRODUCTS,
   INITIAL_SHIFTS,
   INITIAL_TRANSACTIONS,
@@ -92,10 +90,8 @@ export function buildInitialDemoSnapshot(): StoreStateSnapshot {
     profile: DEMO_STORE_PROFILE,
     users: USERS,
     products: INITIAL_PRODUCTS,
-    customers: INITIAL_CUSTOMERS,
     shifts: INITIAL_SHIFTS,
     transactions: INITIAL_TRANSACTIONS,
-    creditPayments: INITIAL_CREDIT_PAYMENTS,
     auditLogs: INITIAL_AUDIT_LOGS,
   };
 }
@@ -139,15 +135,6 @@ export function loadEnvironmentSnapshot(mode: EnvironmentMode): StoreStateSnapsh
     );
   const products = hasLegacySariSari ? INITIAL_PRODUCTS : rawProducts;
 
-  const rawCustomers = loadSnapshotFromLocal(
-    `${DEMO_PREFIX}customers_v2`,
-    loadSnapshotFromLocal('customers_v2', INITIAL_CUSTOMERS)
-  );
-  const hasLegacyCustomers =
-    !Array.isArray(rawCustomers) ||
-    rawCustomers.some((c) => c.name?.includes('Marites') || c.name?.includes('Boyong'));
-  const customers = hasLegacyCustomers ? INITIAL_CUSTOMERS : rawCustomers;
-
   const rawShifts = loadSnapshotFromLocal(
     `${DEMO_PREFIX}shifts_v2`,
     loadSnapshotFromLocal('shifts_v2', INITIAL_SHIFTS)
@@ -163,24 +150,35 @@ export function loadEnvironmentSnapshot(mode: EnvironmentMode): StoreStateSnapsh
   );
   const hasLegacyTransactions =
     !Array.isArray(rawTransactions) ||
-    rawTransactions.some((tx) => tx.customerName?.includes('Marites') || tx.customerName?.includes('Boyong'));
+    rawTransactions.some((tx: any) => tx.customerName || tx.type === 'PAUTANG');
   const transactions = hasLegacyTransactions ? INITIAL_TRANSACTIONS : rawTransactions;
+
+  const rawAudit = loadSnapshotFromLocal(
+    `${DEMO_PREFIX}audit_v2`,
+    loadSnapshotFromLocal('audit_v2', INITIAL_AUDIT_LOGS)
+  );
+  const hasLegacyAudit =
+    !Array.isArray(rawAudit) ||
+    rawAudit.length === 0 ||
+    rawAudit.some(
+      (a: any) =>
+        a.eventType?.includes('PAUTANG') ||
+        a.eventType === 'NEW_CUSTOMER' ||
+        a.summary?.includes('Pautang') ||
+        a.summary?.includes('Marites') ||
+        a.summary?.includes('Credit') ||
+        a.detail?.includes('Pautang') ||
+        a.detail?.includes('Credit Limit')
+    );
+  const auditLogs = hasLegacyAudit ? INITIAL_AUDIT_LOGS : rawAudit;
 
   return {
     profile,
     users: loadSnapshotFromLocal(`${DEMO_PREFIX}users_v2`, USERS),
     products,
-    customers,
     shifts,
     transactions,
-    creditPayments: loadSnapshotFromLocal(
-      `${DEMO_PREFIX}credit_payments_v2`,
-      loadSnapshotFromLocal('credit_payments_v2', INITIAL_CREDIT_PAYMENTS)
-    ),
-    auditLogs: loadSnapshotFromLocal(
-      `${DEMO_PREFIX}audit_v2`,
-      loadSnapshotFromLocal('audit_v2', INITIAL_AUDIT_LOGS)
-    ),
+    auditLogs,
   };
 }
 
@@ -191,10 +189,8 @@ export function persistEnvironmentSnapshot(
   if (mode === 'LIVE') {
     saveSnapshotToIndexedDB(LIVE_STORE_KEY, snapshot);
     saveSnapshotToIndexedDB(`${LIVE_PREFIX}products_v2`, snapshot.products);
-    saveSnapshotToIndexedDB(`${LIVE_PREFIX}customers_v2`, snapshot.customers);
     saveSnapshotToIndexedDB(`${LIVE_PREFIX}shifts_v2`, snapshot.shifts);
     saveSnapshotToIndexedDB(`${LIVE_PREFIX}transactions_v2`, snapshot.transactions);
-    saveSnapshotToIndexedDB(`${LIVE_PREFIX}credit_payments_v2`, snapshot.creditPayments);
     saveSnapshotToIndexedDB(`${LIVE_PREFIX}audit_v2`, snapshot.auditLogs);
 
     if (isSupabaseConfigured() && SUPABASE_URL && SUPABASE_ANON_KEY) {
@@ -225,10 +221,8 @@ export function persistEnvironmentSnapshot(
   saveSnapshotToIndexedDB(`${DEMO_PREFIX}profile_v2`, snapshot.profile);
   saveSnapshotToIndexedDB(`${DEMO_PREFIX}users_v2`, snapshot.users);
   saveSnapshotToIndexedDB(`${DEMO_PREFIX}products_v2`, snapshot.products);
-  saveSnapshotToIndexedDB(`${DEMO_PREFIX}customers_v2`, snapshot.customers);
   saveSnapshotToIndexedDB(`${DEMO_PREFIX}shifts_v2`, snapshot.shifts);
   saveSnapshotToIndexedDB(`${DEMO_PREFIX}transactions_v2`, snapshot.transactions);
-  saveSnapshotToIndexedDB(`${DEMO_PREFIX}credit_payments_v2`, snapshot.creditPayments);
   saveSnapshotToIndexedDB(`${DEMO_PREFIX}audit_v2`, snapshot.auditLogs);
 }
 
@@ -237,18 +231,14 @@ export function resetDemoEnvironment(): StoreStateSnapshot {
   try {
     const keysToRemove = [
       'products_v2',
-      'customers_v2',
       'shifts_v2',
       'transactions_v2',
-      'credit_payments_v2',
       'audit_v2',
       `${DEMO_PREFIX}profile_v2`,
       `${DEMO_PREFIX}users_v2`,
       `${DEMO_PREFIX}products_v2`,
-      `${DEMO_PREFIX}customers_v2`,
       `${DEMO_PREFIX}shifts_v2`,
       `${DEMO_PREFIX}transactions_v2`,
-      `${DEMO_PREFIX}credit_payments_v2`,
       `${DEMO_PREFIX}audit_v2`,
     ];
     for (const k of keysToRemove) {
@@ -405,8 +395,6 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
     startedAt: `${nowTime} Today (Shift #1)`,
     openingCash,
     cashSalesTotal: 0,
-    pautangSalesTotal: 0,
-    repaymentsCollectedTotal: 0,
     expectedDrawerCash: openingCash,
     status: 'ACTIVE',
     notes: `Shift #1 automatically initialized for ${storeProfile.storeName}`,
@@ -442,10 +430,8 @@ export async function provisionLiveStoreAccount(payload: LiveOnboardingPayload):
     profile: storeProfile,
     users,
     products: seededProducts,
-    customers: [],
     shifts: [shiftOne],
     transactions: [],
-    creditPayments: [],
     auditLogs: initialAuditLogs,
   };
 

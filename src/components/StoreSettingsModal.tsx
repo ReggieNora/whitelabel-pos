@@ -380,29 +380,6 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                             </span>
                             <span
                               className={`text-[10px] font-mono px-2 py-0.5 rounded-md flex items-center gap-1 ${
-                                staff.permissions.can_record_pautang
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                  : 'bg-surface-muted text-muted line-through opacity-50'
-                              }`}
-                            >
-                              <Check className="w-2.5 h-2.5" /> Charge {brandConfig.creditLabel}
-                            </span>
-                            <span
-                              className={`text-[10px] font-mono px-2 py-0.5 rounded-md flex items-center gap-1 ${
-                                staff.permissions.can_settle_pautang
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                  : 'bg-surface-muted text-muted line-through opacity-50'
-                              }`}
-                            >
-                              {staff.permissions.can_settle_pautang ? (
-                                <Check className="w-2.5 h-2.5" />
-                              ) : (
-                                <Lock className="w-2.5 h-2.5" />
-                              )}{' '}
-                              Settle {brandConfig.creditLabel}
-                            </span>
-                            <span
-                              className={`text-[10px] font-mono px-2 py-0.5 rounded-md flex items-center gap-1 ${
                                 staff.permissions.can_edit_inventory
                                   ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                                   : 'bg-surface-muted text-muted line-through opacity-50'
@@ -657,7 +634,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                       <span>{brandConfig.cashierRoleLabel}</span>
                       {workerRole === 'cashier' && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">Counter sales &amp; pautang charges</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">Counter sales &amp; register operations</div>
                   </button>
 
                   <button
@@ -673,7 +650,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                       <span>Manager / Trusted</span>
                       {workerRole === 'manager' && <Check className="w-3.5 h-3.5 text-purple-400" />}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">Inventory, pricing &amp; settlements</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">Inventory, pricing &amp; analytics</div>
                   </button>
                 </div>
               </div>
@@ -689,7 +666,7 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                   <label className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 hover:border-slate-600 cursor-pointer transition">
                     <div>
                       <span className="text-xs text-white font-medium block">
-                        Process Cash/GCash Sales
+                        Process Register Sales
                       </span>
                       <span className="text-[11px] text-slate-400">Operate the register and complete transactions</span>
                     </div>
@@ -697,38 +674,6 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                       type="checkbox"
                       checked={permissions.can_checkout}
                       onChange={() => togglePermission('can_checkout')}
-                      className="w-4 h-4 rounded text-blue-600 accent-blue-600 shrink-0 ml-3"
-                    />
-                  </label>
-
-                  {/* can_record_pautang */}
-                  <label className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 hover:border-slate-600 cursor-pointer transition">
-                    <div>
-                      <span className="text-xs text-white font-medium block">
-                        Record {brandConfig.creditLabel} Charges
-                      </span>
-                      <span className="text-[11px] text-slate-400">Add sales to neighborhood suki credit ledger</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={permissions.can_record_pautang}
-                      onChange={() => togglePermission('can_record_pautang')}
-                      className="w-4 h-4 rounded text-blue-600 accent-blue-600 shrink-0 ml-3"
-                    />
-                  </label>
-
-                  {/* can_settle_pautang */}
-                  <label className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 hover:border-slate-600 cursor-pointer transition">
-                    <div>
-                      <span className="text-xs text-white font-medium block">
-                        Accept {brandConfig.creditLabel} Payments
-                      </span>
-                      <span className="text-[11px] text-slate-400">Mark debts as paid and log cash repayments</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={permissions.can_settle_pautang}
-                      onChange={() => togglePermission('can_settle_pautang')}
                       className="w-4 h-4 rounded text-blue-600 accent-blue-600 shrink-0 ml-3"
                     />
                   </label>

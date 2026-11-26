@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import {
   Product,
-  Customer,
   CartItem,
   Role,
   CategoryId,
@@ -524,61 +523,13 @@ export async function updateStoreProduct(storeId: string, productId: string, upd
   return res;
 }
 
-export async function fetchStoreCustomers(storeId: string) {
-  const res = await supabase
-    .from('customers')
-    .select('*')
-    .eq('store_id', storeId)
-    .order('name');
-
-  if (res.error && res.error.message?.includes('store_id')) {
-    return supabase.from('customers').select('*').order('name');
-  }
-  return res;
-}
-
-export async function insertStoreCustomer(
-  storeId: string,
-  customer: { name: string; phone?: string; credit_limit?: number },
-  userId?: string
-) {
-  const row: Record<string, any> = {
-    store_id: storeId,
-    name: customer.name,
-    phone: customer.phone || null,
-    credit_limit: customer.credit_limit ?? 1000,
-    current_balance: 0,
-  };
-
-  if (userId) {
-    row.user_id = userId;
-  }
-
-  const res = await supabase
-    .from('customers')
-    .insert(row)
-    .select()
-    .single();
-
-  if (res.error) {
-    const { user_id, ...withoutUser } = row;
-    const retryRes = await supabase.from('customers').insert(withoutUser).select().single();
-    if (retryRes.error && retryRes.error.message?.includes('store_id')) {
-      const { store_id, ...withoutStore } = withoutUser;
-      return supabase.from('customers').insert(withoutStore).select().single();
-    }
-    return retryRes;
-  }
-  return res;
-}
-
 export async function insertStoreSalesTicket(
   storeId: string,
   ticket: {
     items: any[];
     subtotal: number;
     total: number;
-    payment_method: 'cash' | 'credit' | 'pautang';
+    payment_method: 'cash' | 'card' | 'digital';
     amount_tendered?: number;
     change_due?: number;
     cashier_name?: string;
@@ -591,7 +542,7 @@ export async function insertStoreSalesTicket(
     items: ticket.items,
     subtotal: ticket.subtotal,
     total: ticket.total,
-    payment_method: ticket.payment_method === 'pautang' ? 'credit' : ticket.payment_method,
+    payment_method: ticket.payment_method,
     amount_tendered: ticket.amount_tendered ?? ticket.total,
     change_due: ticket.change_due ?? 0,
     cashier_name: ticket.cashier_name || 'Cashier',
@@ -624,55 +575,6 @@ export async function insertStoreSalesTicket(
   return res;
 }
 
-export async function insertStorePautangLedger(
-  storeId: string,
-  entry: {
-    customer_id?: string;
-    amount: number;
-    type: 'debt' | 'payment';
-    notes?: string;
-    cashier_name?: string;
-    staff_id?: string;
-  },
-  userId?: string
-) {
-  const row: Record<string, any> = {
-    store_id: storeId,
-    customer_id: entry.customer_id || null,
-    amount: entry.amount,
-    type: entry.type,
-    notes: entry.notes || null,
-  };
-
-  if (entry.cashier_name) {
-    row.cashier_name = entry.cashier_name;
-  }
-  if (entry.staff_id) {
-    row.staff_id = entry.staff_id;
-  }
-
-  if (userId) {
-    row.user_id = userId;
-  }
-
-  const res = await supabase
-    .from('pautang_ledger')
-    .insert(row)
-    .select()
-    .single();
-
-  if (res.error) {
-    const { staff_id, cashier_name, user_id, ...cleanRow } = row;
-    const retryRes = await supabase.from('pautang_ledger').insert(cleanRow).select().single();
-    if (retryRes.error && retryRes.error.message?.includes('store_id')) {
-      const { store_id, ...withoutStore } = cleanRow;
-      return supabase.from('pautang_ledger').insert(withoutStore).select().single();
-    }
-    return retryRes;
-  }
-  return res;
-}
-
 /**
  * =========================================================================
  * STORE STAFF MANAGEMENT & PERMISSIONS (public.store_staff)
@@ -697,8 +599,6 @@ export function normalizePermissions(rawPermissions: any, role: 'cashier' | 'man
 
   return {
     can_checkout: typeof parsed.can_checkout === 'boolean' ? parsed.can_checkout : fallback.can_checkout,
-    can_record_pautang: typeof parsed.can_record_pautang === 'boolean' ? parsed.can_record_pautang : fallback.can_record_pautang,
-    can_settle_pautang: typeof parsed.can_settle_pautang === 'boolean' ? parsed.can_settle_pautang : fallback.can_settle_pautang,
     can_edit_inventory: typeof parsed.can_edit_inventory === 'boolean' ? parsed.can_edit_inventory : fallback.can_edit_inventory,
     can_view_margins: typeof parsed.can_view_margins === 'boolean' ? parsed.can_view_margins : fallback.can_view_margins,
     can_export_reports: typeof parsed.can_export_reports === 'boolean' ? parsed.can_export_reports : fallback.can_export_reports,

@@ -6,10 +6,9 @@ import {
   Mail,
   Send,
   ShoppingBag,
-  UserCheck,
   Zap,
 } from 'lucide-react';
-import { formatCurrency, formatCurrencyExact, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { formatCurrencyExact, triggerHapticFeedback } from '../utils/localDb';
 import { brandConfig } from '../config/brandConfig';
 import {
   buildSmsUri,
@@ -50,8 +49,6 @@ export const SaleCompletedModal: React.FC<SaleCompletedModalProps> = ({
   const {
     transaction,
     shiftTag,
-    customerNewBalance,
-    customerCreditLimit,
   } = sale;
   const isCash = transaction.type === 'CASH';
 
@@ -76,94 +73,37 @@ export const SaleCompletedModal: React.FC<SaleCompletedModalProps> = ({
       accentColor="mint"
     >
       <div className="space-y-3.5 mt-4">
-        {/* Hero Readout: Cash Sale vs Pautang Sale */}
-        {isCash ? (
-          <div className="rounded-2xl bg-surface-muted border border-theme p-3.5 shadow-sm space-y-2.5">
-            <div className="grid grid-cols-2 gap-2 pb-2 border-b border-theme text-xs">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-muted font-bold block">
-                  Grand Total Due
-                </span>
-                <span className="font-mono font-bold text-base text-primary">
-                  {formatPesoExact(transaction.totalAmount)}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] uppercase tracking-wider text-muted font-bold block">
-                  Cash Tendered
-                </span>
-                <span className="font-mono font-bold text-base text-primary">
-                  {formatPesoExact(transaction.cashTendered ?? transaction.totalAmount)}
-                </span>
-              </div>
-            </div>
-
-            {/* Ultra-Prominent Emerald CHANGE DUE (text-emerald-btn) */}
-            <div className="text-center py-1">
-              <span className="text-[11px] uppercase tracking-widest text-emerald-btn font-bold block">
-                CHANGE DUE
+        {/* Hero Readout: Direct POS Sale */}
+        <div className="rounded-2xl bg-surface-muted border border-theme p-3.5 shadow-sm space-y-2.5">
+          <div className="grid grid-cols-2 gap-2 pb-2 border-b border-theme text-xs">
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-muted font-bold block">
+                Grand Total Due
               </span>
-              <div className="text-4xl font-mono font-black text-emerald-btn tracking-tight mt-0.5">
-                {formatPesoExact(transaction.changeGiven ?? 0)}
-              </div>
+              <span className="font-mono font-bold text-base text-primary">
+                {formatCurrencyExact(transaction.totalAmount)}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] uppercase tracking-wider text-muted font-bold block">
+                Amount Tendered
+              </span>
+              <span className="font-mono font-bold text-base text-primary">
+                {formatCurrencyExact(transaction.cashTendered ?? transaction.totalAmount)}
+              </span>
             </div>
           </div>
-        ) : (
-          <div className="rounded-2xl bg-surface-muted border border-amber-badge/50 p-3.5 shadow-sm space-y-2.5">
-            <div className="flex items-center justify-between border-b border-theme pb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-badge/15 text-amber-badge flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 stroke-[2.25]" />
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-muted font-bold block">
-                    Charged to Customer
-                  </span>
-                  <span className="text-sm font-bold text-primary">
-                    {transaction.customerName}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] uppercase tracking-wider text-amber-badge font-bold block">
-                  Amount Added
-                </span>
-                <span className="text-lg font-mono font-bold text-amber-badge">
-                  +{formatPesoExact(transaction.totalAmount)}
-                </span>
-              </div>
-            </div>
 
-            {customerNewBalance !== undefined && customerCreditLimit !== undefined && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-muted">New Balance vs Ceiling:</span>
-                  <span className="font-bold text-primary">
-                    {formatPesoExact(customerNewBalance)}{' '}
-                    <span className="text-muted font-normal">
-                      / {formatPeso(customerCreditLimit)}
-                    </span>
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-surface rounded-full overflow-hidden border border-theme">
-                  <div
-                    className={`h-full ${
-                      customerNewBalance > customerCreditLimit
-                        ? 'bg-red-500'
-                        : 'bg-amber-badge'
-                    }`}
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.round((customerNewBalance / customerCreditLimit) * 100)
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+          {/* Ultra-Prominent Emerald CHANGE DUE */}
+          <div className="text-center py-1">
+            <span className="text-[11px] uppercase tracking-widest text-emerald-btn font-bold block">
+              CHANGE DUE
+            </span>
+            <div className="text-4xl font-mono font-black text-emerald-btn tracking-tight mt-0.5">
+              {formatCurrencyExact(transaction.changeGiven ?? 0)}
+            </div>
           </div>
-        )}
+        </div>
 
         {/* SMS Receipt Dispatcher Card */}
         <div className="rounded-2xl bg-surface-muted border border-theme p-3 space-y-2 shadow-sm">
@@ -255,7 +195,7 @@ export const SaleCompletedModal: React.FC<SaleCompletedModalProps> = ({
                     {item.icon} {item.qty}× {item.name}
                   </span>
                   <span className="font-bold text-emerald-btn">
-                    {formatPesoExact(item.unitPrice * item.qty)}
+                    {formatCurrencyExact(item.unitPrice * item.qty)}
                   </span>
                 </div>
               ))}

@@ -22,7 +22,6 @@ import { AuthOnboardingModal } from './components/AuthOnboardingModal';
 import { CashierRegister } from './components/CashierRegister';
 import { InventoryHub } from './components/InventoryHub';
 import { OwnerDashboard } from './components/OwnerDashboard';
-import { PautangHub } from './components/PautangHub';
 import { PesOSLogo } from './components/PesOSLogo';
 import { brandConfig } from './config/brandConfig';
 import { setGlobalCurrency } from './utils/currency';
@@ -31,7 +30,6 @@ import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { useLanguage } from './context/LanguageContext';
 import {
   CashCheckoutModal,
-  PautangCheckoutModal,
   VoiceDictationModal,
 } from './components/PaymentModals';
 import { ShiftHandoverModal } from './components/ShiftHandoverModal';
@@ -39,7 +37,6 @@ import { SaleCompletedModal } from './components/SaleCompletedModal';
 import { StoreSettingsModal } from './components/StoreSettingsModal';
 import { CashierSwitchModal } from './components/CashierSwitchModal';
 import {
-  computeCustomerStatus,
   INITIAL_PRODUCTS,
   USERS,
 } from './data/mockSariSariData';
@@ -54,8 +51,6 @@ import {
   CartItem,
   CategoryMeta,
   CatalogPresetType,
-  CreditPayment,
-  Customer,
   EnvironmentMode,
   LiveOnboardingPayload,
   OcrInvoicePreset,
@@ -91,12 +86,9 @@ import {
   setActiveStoreSession,
   clearActiveStoreSession,
   fetchStoreProducts,
-  fetchStoreCustomers,
   insertStoreProduct,
   updateStoreProduct,
-  insertStoreCustomer,
   insertStoreSalesTicket,
-  insertStorePautangLedger,
   mapRowToProduct,
   signInWithGoogle,
   signOutAuth,
@@ -122,7 +114,7 @@ import {
 import { CompletedSaleSummary } from './utils/receiptFormatter';
 import { ParsedVoiceCommand } from './utils/voiceParser';
 
-type NavTab = 'REGISTER' | 'INVENTORY' | 'PAUTANG_BOOK' | 'OWNER';
+type NavTab = 'REGISTER' | 'INVENTORY' | 'OWNER';
 type ThemeMode = 'dark' | 'light';
 
 const THEME_STORAGE_KEY = 'tingipos_theme';
@@ -315,15 +307,9 @@ export function App() {
   }, [storeProfile.currencySymbol]);
   const [users, setUsers] = useState<UserProfile[]>(initialSnapshot.users);
   const [products, setProducts] = useState<Product[]>(initialSnapshot.products);
-  const [customers, setCustomers] = useState<Customer[]>(
-    initialSnapshot.customers
-  );
   const [shifts, setShifts] = useState<ShiftRecord[]>(initialSnapshot.shifts);
   const [transactions, setTransactions] = useState<TransactionRecord[]>(
     initialSnapshot.transactions
-  );
-  const [creditPayments, setCreditPayments] = useState<CreditPayment[]>(
-    initialSnapshot.creditPayments
   );
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(
     initialSnapshot.auditLogs
@@ -339,26 +325,23 @@ export function App() {
     () => !hasActiveSession()
   );
 
-  // Default Cart pre-populated to ₱81.00 in DEMO mode; empty ready-to-sell in LIVE mode
+  // Default Cart pre-populated in DEMO mode; empty ready-to-sell in LIVE mode
   const [cart, setCart] = useState<CartItem[]>(() =>
     environmentMode === 'DEMO'
       ? [
           { product: INITIAL_PRODUCTS[0], qty: 1 },
-          { product: INITIAL_PRODUCTS[6], qty: 2 },
+          { product: INITIAL_PRODUCTS[1] || INITIAL_PRODUCTS[0], qty: 2 },
         ]
       : []
   );
 
   // Drill-down filtering states from Dashboard
   const [inventoryFilterLowOnly, setInventoryFilterLowOnly] = useState<boolean>(false);
-  const [pautangSortBy, setPautangSortBy] = useState<'HIGHEST_BALANCE' | 'OLDEST_DEBT'>('HIGHEST_BALANCE');
 
   // Modals State
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isCashOpen, setIsCashOpen] = useState(false);
   const [cashModalPreset, setCashModalPreset] = useState<number | null>(null);
-  const [isPautangOpen, setIsPautangOpen] = useState(false);
-  const [preselectedCustomerId, setPreselectedCustomerId] = useState<string | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [shiftModalTab, setShiftModalTab] = useState<'PIN_SWITCH' | 'BLIND_COUNT'>('PIN_SWITCH');
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
@@ -526,10 +509,8 @@ export function App() {
       profile: storeProfile,
       users,
       products,
-      customers,
       shifts,
       transactions,
-      creditPayments,
       auditLogs,
     });
   }, [
@@ -537,21 +518,16 @@ export function App() {
     storeProfile,
     users,
     products,
-    customers,
     shifts,
     transactions,
-    creditPayments,
     auditLogs,
   ]);
 
-  // Sync scoped Live Store items and customers from Supabase on mount or store switch
+  // Sync scoped Live Store items from Supabase on mount or store switch
   useEffect(() => {
     if (environmentMode === 'LIVE' && storeProfile.id && !storeProfile.id.startsWith('demo')) {
-      Promise.all([
-        fetchStoreProducts(storeProfile.id),
-        fetchStoreCustomers(storeProfile.id),
-      ])
-        .then(([prodRes, custRes]) => {
+      fetchStoreProducts(storeProfile.id)
+        .then((prodRes) => {
           if (prodRes.data && prodRes.data.length > 0) {
             setProducts((prev) => {
               const remoteMap = new Map(prodRes.data.map((p: any) => [p.id, p]));
@@ -562,33 +538,6 @@ export function App() {
               for (const localItem of prev) {
                 if (!remoteMap.has(localItem.id)) {
                   merged.push(localItem);
-                }
-              }
-              return merged;
-            });
-          }
-
-          if (custRes.data && custRes.data.length > 0) {
-            setCustomers((prev) => {
-              const remoteMap = new Map(custRes.data.map((c: any) => [c.id, c]));
-              const merged = custRes.data.map((c: any) => {
-                const existing = prev.find((item) => item.id === c.id);
-                return {
-                  id: c.id,
-                  name: c.name,
-                  alias: existing?.alias || 'Regular',
-                  phone: c.phone || '',
-                  creditLimit: Number(c.credit_limit) || 1000,
-                  currentBalance: Number(c.current_balance) || 0,
-                  status: existing?.status || 'Good Standing',
-                  oldestDebtDays: existing?.oldestDebtDays ?? 0,
-                  oldestDebtAt: existing?.oldestDebtAt || 'Active',
-                  lastTransactionNote: existing?.lastTransactionNote || c.notes || 'Registered',
-                };
-              });
-              for (const localCust of prev) {
-                if (!remoteMap.has(localCust.id)) {
-                  merged.push(localCust);
                 }
               }
               return merged;
@@ -611,10 +560,8 @@ export function App() {
     setStoreProfile(snap.profile);
     setUsers(snap.users);
     setProducts(snap.products);
-    setCustomers(snap.customers);
     setShifts(snap.shifts);
     setTransactions(snap.transactions);
-    setCreditPayments(snap.creditPayments);
     setAuditLogs(snap.auditLogs);
     const defaultStaff: StoreStaff = {
       id: 'owner-admin',
@@ -669,29 +616,11 @@ export function App() {
       // If switching stores or snapshot doesn't match this store_id, fetch fresh scoped data
       if (!liveSnapshot || liveSnapshot.profile.id !== store.id) {
         try {
-          const [prodsRes, custsRes] = await Promise.all([
-            fetchStoreProducts(store.id),
-            fetchStoreCustomers(store.id),
-          ]);
+          const prodsRes = await fetchStoreProducts(store.id);
 
           const scopedProducts: Product[] = (prodsRes.data && prodsRes.data.length > 0)
             ? prodsRes.data.map((p: any) => mapRowToProduct(p))
             : (liveSnapshot?.products || []);
-
-          const scopedCustomers: Customer[] = (custsRes.data && custsRes.data.length > 0)
-            ? custsRes.data.map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                alias: 'Regular',
-                phone: c.phone || '',
-                creditLimit: Number(c.credit_limit) || 1000,
-                currentBalance: Number(c.current_balance) || 0,
-                status: 'Good Standing',
-                oldestDebtDays: 0,
-                oldestDebtAt: 'Active',
-                lastTransactionNote: c.notes || 'Registered',
-              }))
-            : (liveSnapshot?.customers || []);
 
           const storeProfile: StoreProfile = {
             id: store.id,
@@ -715,10 +644,8 @@ export function App() {
             profile: storeProfile,
             users: [ownerUser],
             products: scopedProducts,
-            customers: scopedCustomers,
             shifts: liveSnapshot?.shifts || [],
             transactions: liveSnapshot?.transactions || [],
-            creditPayments: liveSnapshot?.creditPayments || [],
             auditLogs: liveSnapshot?.auditLogs || [],
           };
         } catch (fetchErr) {
@@ -751,9 +678,8 @@ export function App() {
       if (store) {
         setActiveStoreSession(store.id, store.store_name || store.name || 'Store', store);
 
-        const [prodsRes, custsRes, staffRes] = await Promise.all([
+        const [prodsRes, staffRes] = await Promise.all([
           fetchStoreProducts(store.id),
-          fetchStoreCustomers(store.id),
           fetchStoreStaff(store.id),
         ]);
 
@@ -766,22 +692,6 @@ export function App() {
           prodsRes.data && prodsRes.data.length > 0
             ? prodsRes.data.map((p: any) => mapRowToProduct(p))
             : liveSnapshot?.products || [];
-
-        const scopedCustomers: Customer[] =
-          custsRes.data && custsRes.data.length > 0
-            ? custsRes.data.map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                alias: 'Regular',
-                phone: c.phone || '',
-                creditLimit: Number(c.credit_limit) || 1000,
-                currentBalance: Number(c.current_balance) || 0,
-                status: 'Good Standing',
-                oldestDebtDays: 0,
-                oldestDebtAt: 'Active',
-                lastTransactionNote: c.notes || 'Registered',
-              }))
-            : liveSnapshot?.customers || [];
 
         const ownerName =
           store.owner_name ||
@@ -814,10 +724,8 @@ export function App() {
           profile: storeProfile,
           users: [ownerUser],
           products: scopedProducts,
-          customers: scopedCustomers,
           shifts: liveSnapshot?.shifts || [],
           transactions: liveSnapshot?.transactions || [],
-          creditPayments: liveSnapshot?.creditPayments || [],
           auditLogs: liveSnapshot?.auditLogs || [],
         };
 
@@ -1015,11 +923,6 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOwnerUnlockModalOpen, ownerUnlockPinInput, ownerStaff.pin, users]);
 
-  const activeCustomer = useMemo(
-    () => customers.find((c) => c.id === preselectedCustomerId) || null,
-    [customers, preselectedCustomerId]
-  );
-
   const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.product.sellingPrice * item.qty, 0),
     [cart]
@@ -1059,12 +962,10 @@ export function App() {
 
   // Deduct inventory and record transaction (<100ms local-first commit)
   const commitTransaction = (
-    type: 'CASH' | 'PAUTANG',
+    type: 'CASH' | 'CARD',
     options?: {
       cashTendered?: number;
       changeGiven?: number;
-      customer?: Customer;
-      overrideApproved?: boolean;
     }
   ): TransactionRecord | null => {
     if (cart.length === 0) return null;
@@ -1086,9 +987,6 @@ export function App() {
       totalWholesaleCost: totalCost,
       cashTendered: options?.cashTendered,
       changeGiven: options?.changeGiven,
-      customerId: options?.customer?.id,
-      customerName: options?.customer?.name,
-      overrideApproved: options?.overrideApproved,
       items: cart.map((c) => ({
         productId: c.product.id,
         name: c.product.shortName,
@@ -1128,7 +1026,6 @@ export function App() {
         return {
           ...s,
           cashSalesTotal: s.cashSalesTotal + addedCash,
-          pautangSalesTotal: s.pautangSalesTotal + (type === 'PAUTANG' ? subtotal : 0),
           expectedDrawerCash: s.expectedDrawerCash + addedCash,
         };
       })
@@ -1145,7 +1042,7 @@ export function App() {
           items: newTx.items,
           subtotal: newTx.totalAmount,
           total: newTx.totalAmount,
-          payment_method: type === 'PAUTANG' ? 'credit' : 'cash',
+          payment_method: type === 'CARD' ? 'card' : 'cash',
           amount_tendered: options?.cashTendered,
           change_due: options?.changeGiven,
           cashier_name: activeStaffMember.name,
@@ -1155,23 +1052,6 @@ export function App() {
       ).catch((err) => {
         console.warn('Supabase sales ticket sync notice:', err);
       });
-
-      if (type === 'PAUTANG' && options?.customer) {
-        insertStorePautangLedger(
-          storeProfile.id,
-          {
-            customer_id: options.customer.id,
-            amount: subtotal,
-            type: 'debt',
-            notes: `${brandConfig.creditLabel} Sale: ${cart.map((i) => `${i.qty}x ${i.product.shortName}`).join(', ')}`,
-            cashier_name: activeStaffMember.name,
-            staff_id: activeStaffMember.id,
-          },
-          activeUserId
-        ).catch((err) => {
-          console.warn('Supabase pautang ledger sync notice:', err);
-        });
-      }
     }
 
     setCart([]);
@@ -1190,198 +1070,6 @@ export function App() {
     }
   };
 
-  const handleCompletePautang = (customer: Customer, overrideUsed: boolean) => {
-    const newBalance = customer.currentBalance + subtotal;
-    const tx = commitTransaction('PAUTANG', {
-      customer,
-      overrideApproved: overrideUsed,
-    });
-
-    setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === customer.id
-          ? {
-              ...c,
-              currentBalance: newBalance,
-              status: computeCustomerStatus(newBalance, c.creditLimit, c.oldestDebtDays),
-              oldestDebtAt: c.currentBalance === 0 ? 'Just now' : c.oldestDebtAt,
-              lastTransactionNote: `${cart.map((i) => `${i.qty}x ${i.product.shortName}`).join(', ')} (Just now)`,
-            }
-          : c
-      )
-    );
-
-    setAuditLogs((prev) => [
-      {
-        id: `aud-${Date.now()}`,
-        timestamp: 'Just now',
-        actorName: currentUser.name,
-        actorRole: currentUser.role,
-        eventType: 'PAUTANG_CREDIT',
-        severity: overrideUsed ? 'CRITICAL' : 'WARN',
-        summary: `${overrideUsed ? '[PIN OVERRIDE] ' : ''}${brandConfig.creditLabel} ${formatPesoExact(subtotal)} → ${customer.name}`,
-        detail: `New Balance: ${formatPesoExact(newBalance)} / Limit ${formatPesoExact(customer.creditLimit)}`,
-      },
-      ...prev,
-    ]);
-
-    setIsPautangOpen(false);
-    if (tx) {
-      setCompletedSale({
-        transaction: tx,
-        shiftTag: activeShift.id.slice(-7),
-        storeName: storeProfile.storeName,
-        customerPhone: customer.phone,
-        customerNewBalance: newBalance,
-        customerCreditLimit: customer.creditLimit,
-      });
-    }
-  };
-
-  const handleQuickAddCustomer = (
-    name: string,
-    phone: string,
-    creditLimit: number
-  ): Customer => {
-    const newCust: Customer = {
-      id: `cust-${Date.now()}`,
-      name,
-      alias: 'Neighborhood Regular',
-      phone,
-      creditLimit,
-      currentBalance: 0,
-      status: 'Good Standing',
-      oldestDebtDays: 0,
-      oldestDebtAt: 'New Account',
-      lastTransactionNote: 'Account created today',
-    };
-
-    setCustomers((prev) => [newCust, ...prev]);
-
-    if (environmentMode === 'LIVE' && storeProfile.id) {
-      insertStoreCustomer(
-        storeProfile.id,
-        {
-          name,
-          phone,
-          credit_limit: creditLimit,
-        },
-        googleUser?.id || currentUser.id
-      ).catch((err) => {
-        console.warn('Supabase customer insert notice:', err);
-      });
-    }
-
-    setAuditLogs((prev) => [
-      {
-        id: `aud-${Date.now()}`,
-        timestamp: 'Just now',
-        actorName: currentUser.name,
-        actorRole: currentUser.role,
-        eventType: 'NEW_CUSTOMER',
-        severity: 'INFO',
-        summary: `Added Customer: ${name}`,
-        detail: `Credit Limit: ${formatPesoExact(creditLimit)} • Phone: ${phone}`,
-      },
-      ...prev,
-    ]);
-    showToast(`Added ${name} (Limit ${formatPesoExact(creditLimit)})`);
-    return newCust;
-  };
-
-  const handleRecordRepayment = (
-    customerId: string,
-    amountPaid: number,
-    note: string
-  ) => {
-    const target = customers.find((c) => c.id === customerId);
-    if (!target || amountPaid <= 0) return;
-
-    const newBalance = Math.max(0, target.currentBalance - amountPaid);
-    const newDebtDays = newBalance === 0 ? 0 : target.oldestDebtDays;
-
-    const paymentEntry: CreditPayment = {
-      id: `PAY-${Math.floor(100 + Math.random() * 900)}`,
-      customerId: target.id,
-      customerName: target.name,
-      amountPaid,
-      balanceAfter: newBalance,
-      receivedByUserId: activeStaffMember.id,
-      receivedByName: activeStaffMember.name,
-      createdAt: `Today, ${new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`,
-      timestampMs: Date.now(),
-      note: note.trim() || undefined,
-    };
-
-    setCreditPayments((prev) => [paymentEntry, ...prev]);
-
-    if (environmentMode === 'LIVE' && storeProfile.id) {
-      insertStorePautangLedger(
-        storeProfile.id,
-        {
-          customer_id: target.id,
-          amount: amountPaid,
-          type: 'payment',
-          notes: note.trim() || `Repayment of ${formatPesoExact(amountPaid)}`,
-          cashier_name: activeStaffMember.name,
-          staff_id: activeStaffMember.id,
-        },
-        googleUser?.id || currentUser.id
-      ).catch((err) => {
-        console.warn('Supabase repayment ledger sync notice:', err);
-      });
-    }
-
-    setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === customerId
-          ? {
-              ...c,
-              currentBalance: newBalance,
-              oldestDebtDays: newDebtDays,
-              oldestDebtAt: newBalance === 0 ? 'Cleared' : c.oldestDebtAt,
-              status: computeCustomerStatus(newBalance, c.creditLimit, newDebtDays),
-              lastTransactionNote: `Paid ${formatPesoExact(amountPaid)} cash (Just now)`,
-            }
-          : c
-      )
-    );
-
-    // Add cash received to active shift drawer
-    setShifts((prev) =>
-      prev.map((s) =>
-        s.id === activeShift.id
-          ? {
-              ...s,
-              repaymentsCollectedTotal: s.repaymentsCollectedTotal + amountPaid,
-              expectedDrawerCash: s.expectedDrawerCash + amountPaid,
-            }
-          : s
-      )
-    );
-
-    setAuditLogs((prev) => [
-      {
-        id: `aud-${Date.now()}`,
-        timestamp: 'Just now',
-        actorName: currentUser.name,
-        actorRole: currentUser.role,
-        eventType: 'PAUTANG_REPAYMENT',
-        severity: 'INFO',
-        summary: `Repayment ${formatPesoExact(amountPaid)} from ${target.name}`,
-        detail: `Remaining Balance: ${formatPesoExact(newBalance)}`,
-      },
-      ...prev,
-    ]);
-
-    showToast(
-      `Recorded ${formatPesoExact(amountPaid)} repayment from ${target.name} • Bal: ${formatPesoExact(newBalance)}`
-    );
-  };
-
   const handleApplyVoiceCommand = (parsed: ParsedVoiceCommand) => {
     setCart(parsed.matchedItems);
     setIsVoiceOpen(false);
@@ -1391,10 +1079,7 @@ export function App() {
       0
     );
 
-    if (parsed.suggestedPaymentMethod === 'PAUTANG') {
-      setPreselectedCustomerId(parsed.customerQuery);
-      setIsPautangOpen(true);
-    } else if (parsed.tenderedCash && parsed.tenderedCash >= voiceSubtotal) {
+    if (parsed.tenderedCash && parsed.tenderedCash >= voiceSubtotal) {
       setCashModalPreset(parsed.tenderedCash);
       setIsCashOpen(true);
     } else {
@@ -1487,7 +1172,6 @@ export function App() {
   }[] = [
     { id: 'REGISTER', label: 'Register', icon: ShoppingCart },
     { id: 'INVENTORY', label: 'Inventory', icon: Package },
-    { id: 'PAUTANG_BOOK', label: brandConfig.creditLabel, icon: Users },
     { id: 'OWNER', label: 'Dashboard', icon: BarChart3 },
   ];
 
@@ -1812,7 +1496,6 @@ export function App() {
               categories={categories}
               currentRole={currentUser.role}
               permissions={activeStaffMember.permissions}
-              customerName={activeCustomer?.name}
               onAddProduct={handleAddProduct}
               onDecrementProduct={handleDecrementProduct}
               onRemoveProduct={handleRemoveProduct}
@@ -1822,9 +1505,6 @@ export function App() {
               onOpenCashModal={(preset) => {
                 setCashModalPreset(preset ?? null);
                 setIsCashOpen(true);
-              }}
-              onOpenPautangModal={() => {
-                setIsPautangOpen(true);
               }}
               onInstantCashSale={handleCompleteCash}
               onOpenOcrModal={() => setIsOcrModalOpen(true)}
@@ -1966,36 +1646,17 @@ export function App() {
             />
           )}
 
-          {activeTab === 'PAUTANG_BOOK' && (
-            <PautangHub
-              customers={customers}
-              transactions={transactions}
-              creditPayments={creditPayments}
-              currentRole={currentUser.role}
-              permissions={activeStaffMember.permissions}
-              initialSortBy={pautangSortBy}
-              ownerPin={ownerStaff.pin}
-              onRecordRepayment={handleRecordRepayment}
-              onQuickAddCustomer={handleQuickAddCustomer}
-            />
-          )}
-
           {activeTab === 'OWNER' &&
             (currentUser.role === 'OWNER' || activeStaffMember.role === 'manager' || activeStaffMember.permissions.can_view_margins ? (
               <OwnerDashboard
                 currentRole={currentUser.role}
                 permissions={activeStaffMember.permissions}
                 products={products}
-                customers={customers}
                 shifts={shifts}
                 transactions={transactions}
                 auditLogs={auditLogs}
                 onSwitchToOwnerPin={() => {
                   handleSwitchStaff(ownerStaff);
-                }}
-                onOpenPautangBook={(sort = 'HIGHEST_BALANCE') => {
-                  setPautangSortBy(sort);
-                  setActiveTab('PAUTANG_BOOK');
                 }}
                 onOpenLowStockInventory={() => {
                   setInventoryFilterLowOnly(true);
@@ -2069,10 +1730,10 @@ export function App() {
             ))}
         </main>
 
-        {/* 2. Fixed Bottom Navigation Deck (Strictly 4 Operational Tabs with Balanced Spacing) */}
+        {/* 2. Fixed Bottom Navigation Deck (Strictly 3 Operational Tabs with Balanced Spacing) */}
         <nav
           aria-label="Primary Bottom Navigation"
-          className="fixed bottom-0 left-0 right-0 z-40 h-16 pb-safe bg-surface/90 backdrop-blur-md border-t border-theme grid grid-cols-4 items-center px-2 sm:px-6 md:px-12 transition-colors duration-200 shadow-lg"
+          className="fixed bottom-0 left-0 right-0 z-40 h-16 pb-safe bg-surface/90 backdrop-blur-md border-t border-theme grid grid-cols-3 items-center px-2 sm:px-6 md:px-12 transition-colors duration-200 shadow-lg"
         >
           {navItems.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
@@ -2323,18 +1984,6 @@ export function App() {
         subtotal={subtotal}
         initialTendered={cashModalPreset}
         onCompleteCash={handleCompleteCash}
-      />
-
-      <PautangCheckoutModal
-        isOpen={isPautangOpen}
-        onClose={() => setIsPautangOpen(false)}
-        subtotal={subtotal}
-        customers={customers}
-        currentRole={currentUser.role}
-        ownerPin={ownerStaff.pin}
-        preselectedCustomerId={preselectedCustomerId}
-        onCompletePautang={handleCompletePautang}
-        onQuickAddCustomer={handleQuickAddCustomer}
       />
 
       <VoiceDictationModal

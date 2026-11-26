@@ -574,7 +574,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                   </h2>
                   <p className="text-xs text-muted">
                     {pinStage === 'CREATE'
-                      ? `Protects ${storeName.trim()}'s profit dashboard & credit overrides.`
+                      ? `Protects ${storeName.trim()}'s profit dashboard & management settings.`
                       : 'Tap the same 4 digits one more time to confirm.'}
                   </p>
                 </div>

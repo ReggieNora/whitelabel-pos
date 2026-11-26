@@ -7,74 +7,50 @@ export interface ParsedVoiceCommand {
     qty: number;
   }[];
   tenderedCash: number | null;
-  suggestedPaymentMethod: 'CASH' | 'PAUTANG' | 'GCASH_QR';
-  customerQuery: string | null;
+  suggestedPaymentMethod: 'CASH' | 'CARD';
 }
 
 const NUMBER_WORDS: Record<string, number> = {
   one: 1,
   a: 1,
   an: 1,
-  isa: 1,
-  isang: 1,
   two: 2,
-  dalawa: 2,
-  dalawang: 2,
   three: 3,
-  tatlo: 3,
-  tatlong: 3,
   four: 4,
-  apat: 4,
-  apatna: 4,
   five: 5,
-  lima: 5,
-  limang: 5,
   six: 6,
-  anim: 6,
   seven: 7,
-  pito: 7,
   eight: 8,
-  walo: 8,
   nine: 9,
-  siyam: 9,
   ten: 10,
-  sampu: 10,
 };
 
 export const VOICE_PRESET_PHRASES = [
-  'Two Pantene, one Coke 1.5, paid 100',
-  'Three Pancit Canton, two Great Taste, paid 200',
-  'Dalawang Sinandomeng rice, isang Safeguard, pautang Marites',
-  'Five Marlboro Red, one Cobra, gcash',
+  'Two cold brews, one chips, paid 20',
+  'Three bottled water, one notebook, paid 50',
+  'One espresso, two croissants, card',
+  'Two phone cables, one notebook, paid 100',
 ];
 
 export function parseVoiceOrder(transcript: string, catalog: Product[]): ParsedVoiceCommand {
   const normalized = transcript.toLowerCase().trim();
 
-  // Detect tendered cash: e.g. "paid 100", "bayad 200", "cash 500", "100 pesos"
+  // Detect tendered cash: e.g. "paid 100", "cash 50", "20 dollars"
   let tenderedCash: number | null = null;
-  const cashMatch = normalized.match(/(?:paid|bayad|cash|bill|tendered)\s*(?:₱|php|\$|€|£|¥)?\s*(\d{1,5})/i);
+  const cashMatch = normalized.match(/(?:paid|cash|bill|tendered)\s*(?:₱|php|\$|€|£|¥)?\s*(\d{1,5})/i);
   if (cashMatch) {
     tenderedCash = parseFloat(cashMatch[1]);
   }
 
   // Detect payment method
-  let suggestedPaymentMethod: 'CASH' | 'PAUTANG' | 'GCASH_QR' = 'CASH';
-  let customerQuery: string | null = null;
-
-  if (normalized.includes('pautang') || normalized.includes('utang') || normalized.includes('credit')) {
-    suggestedPaymentMethod = 'PAUTANG';
-    if (normalized.includes('marites')) customerQuery = 'cust-marites';
-    else if (normalized.includes('boyet')) customerQuery = 'cust-boyet';
-    else if (normalized.includes('jessa')) customerQuery = 'cust-jessa';
-    else if (normalized.includes('ronnie')) customerQuery = 'cust-ronnie';
-  } else if (normalized.includes('gcash') || normalized.includes('qr')) {
-    suggestedPaymentMethod = 'GCASH_QR';
+  let suggestedPaymentMethod: 'CASH' | 'CARD' = 'CASH';
+  if (normalized.includes('card') || normalized.includes('credit card') || normalized.includes('debit')) {
+    suggestedPaymentMethod = 'CARD';
   }
 
-  // Split into clauses by comma or "and" / "at"
+  // Split into clauses by comma or "and" / "plus"
   const clauses = normalized
-    .split(/,|\band\b|\bat\b|\bplus\b/)
+    .split(/,|\band\b|\bplus\b/)
     .map((c) => c.trim())
     .filter(Boolean);
 
@@ -82,7 +58,7 @@ export function parseVoiceOrder(transcript: string, catalog: Product[]): ParsedV
 
   for (const clause of clauses) {
     // Skip pure payment clauses like "paid 100"
-    if (/^(?:paid|bayad|cash|gcash|qr|pautang|utang)\b/.test(clause)) {
+    if (/^(?:paid|cash|bill|card)\b/.test(clause)) {
       continue;
     }
 
@@ -136,6 +112,5 @@ export function parseVoiceOrder(transcript: string, catalog: Product[]): ParsedV
     matchedItems: Array.from(matchedMap.values()),
     tenderedCash,
     suggestedPaymentMethod,
-    customerQuery,
   };
 }

@@ -2,8 +2,6 @@ export type Role = 'CASHIER' | 'OWNER';
 
 export interface StaffPermissions {
   can_checkout: boolean;
-  can_record_pautang: boolean;
-  can_settle_pautang: boolean;
   can_edit_inventory: boolean;
   can_view_margins: boolean;
   can_export_reports: boolean;
@@ -22,8 +20,6 @@ export interface StoreStaff {
 
 export const DEFAULT_OWNER_PERMISSIONS: StaffPermissions = {
   can_checkout: true,
-  can_record_pautang: true,
-  can_settle_pautang: true,
   can_edit_inventory: true,
   can_view_margins: true,
   can_export_reports: true,
@@ -31,8 +27,6 @@ export const DEFAULT_OWNER_PERMISSIONS: StaffPermissions = {
 
 export const DEFAULT_CASHIER_PERMISSIONS: StaffPermissions = {
   can_checkout: true,
-  can_record_pautang: true,
-  can_settle_pautang: false,
   can_edit_inventory: false,
   can_view_margins: false,
   can_export_reports: false,
@@ -40,8 +34,6 @@ export const DEFAULT_CASHIER_PERMISSIONS: StaffPermissions = {
 
 export const DEFAULT_MANAGER_PERMISSIONS: StaffPermissions = {
   can_checkout: true,
-  can_record_pautang: true,
-  can_settle_pautang: true,
   can_edit_inventory: true,
   can_view_margins: true,
   can_export_reports: true,
@@ -105,21 +97,6 @@ export interface CartItem {
   qty: number;
 }
 
-export type CustomerCreditStatus = 'Good Standing' | 'Near Limit' | 'Overdue';
-
-export interface Customer {
-  id: string;
-  name: string;
-  alias: string;
-  phone: string;
-  creditLimit: number;
-  currentBalance: number;
-  status: CustomerCreditStatus;
-  oldestDebtDays: number;
-  oldestDebtAt: string;
-  lastTransactionNote: string;
-}
-
 export interface ShiftRecord {
   id: string;
   cashierId: string;
@@ -129,8 +106,6 @@ export interface ShiftRecord {
   endedAt?: string;
   openingCash: number;
   cashSalesTotal: number;
-  pautangSalesTotal: number;
-  repaymentsCollectedTotal: number;
   expectedDrawerCash: number;
   blindCountedCash?: number;
   discrepancy?: number;
@@ -144,13 +119,11 @@ export interface TransactionRecord {
   timestampMs: number;
   cashierId: string;
   cashierName: string;
-  type: 'CASH' | 'PAUTANG';
+  type: 'CASH' | 'CARD';
   totalAmount: number;
   totalWholesaleCost: number;
   cashTendered?: number;
   changeGiven?: number;
-  customerId?: string;
-  customerName?: string;
   overrideApproved?: boolean;
   items: {
     productId: string;
@@ -161,19 +134,6 @@ export interface TransactionRecord {
     unitCost: number;
   }[];
   syncStatus: 'SYNCED' | 'PENDING_SYNC';
-}
-
-export interface CreditPayment {
-  id: string;
-  customerId: string;
-  customerName: string;
-  amountPaid: number;
-  balanceAfter: number;
-  receivedByUserId: string;
-  receivedByName: string;
-  createdAt: string;
-  timestampMs: number;
-  note?: string;
 }
 
 export interface AuditLogEntry {
@@ -187,9 +147,6 @@ export interface AuditLogEntry {
     | 'BLIND_COUNT_MATCH'
     | 'PRICE_EDIT'
     | 'OCR_STOCK_IN'
-    | 'PAUTANG_CREDIT'
-    | 'PAUTANG_REPAYMENT'
-    | 'NEW_CUSTOMER'
     | 'CASH_OVERRIDE';
   severity: 'INFO' | 'WARN' | 'CRITICAL';
   summary: string;
@@ -248,10 +205,8 @@ export interface StoreStateSnapshot {
   profile: StoreProfile;
   users: UserProfile[];
   products: Product[];
-  customers: Customer[];
   shifts: ShiftRecord[];
   transactions: TransactionRecord[];
-  creditPayments: CreditPayment[];
   auditLogs: AuditLogEntry[];
 }
 

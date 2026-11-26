@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import {
   AuditLogEntry,
-  Customer,
   Product,
   Role,
   ShiftRecord,
@@ -51,12 +50,10 @@ interface CashMovementEntry {
 interface OwnerDashboardProps {
   currentRole: Role;
   products: Product[];
-  customers: Customer[];
   shifts: ShiftRecord[];
   transactions: TransactionRecord[];
   auditLogs: AuditLogEntry[];
   onSwitchToOwnerPin: () => void;
-  onOpenPautangBook: (sort?: 'HIGHEST_BALANCE' | 'OLDEST_DEBT') => void;
   onOpenLowStockInventory: () => void;
   onOpenBlindHandover: () => void;
   onTriggerOcrRestock: () => void;
@@ -68,12 +65,10 @@ interface OwnerDashboardProps {
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
   currentRole,
   products,
-  customers,
   shifts,
   transactions,
   auditLogs,
   onSwitchToOwnerPin,
-  onOpenPautangBook,
   onOpenLowStockInventory,
   onOpenBlindHandover,
   onTriggerOcrRestock,
@@ -86,7 +81,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
   // Modal & Drawer Drill-Down States
   const [isTxLogOpen, setIsTxLogOpen] = useState(false);
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
-  const [txFilter, setTxFilter] = useState<'ALL' | 'CASH' | 'PAUTANG'>('ALL');
+  const [txFilter, setTxFilter] = useState<'ALL' | 'CASH' | 'CARD'>('ALL');
   const [txSearchQuery, setTxSearchQuery] = useState('');
 
   const [isCashDrawerOpen, setIsCashDrawerOpen] = useState(false);
@@ -115,8 +110,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
     transactions.reduce((sum, tx) => sum + tx.totalWholesaleCost, 0) + 1390;
   const netProfit = grossSales - totalCost;
   const profitMarginPct = grossSales > 0 ? (netProfit / grossSales) * 100 : 0;
-
-  const totalPautang = customers.reduce((sum, c) => sum + c.currentBalance, 0);
 
   const activeShift = shifts.find((s) => s.status === 'ACTIVE') || shifts[0];
   const openingCash = activeShift ? activeShift.openingCash : 1500;
@@ -153,14 +146,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
       if (txFilter === 'CASH' && tx.type !== 'CASH') return false;
-      if (txFilter === 'PAUTANG' && tx.type !== 'PAUTANG') return false;
+      if (txFilter === 'CARD' && tx.type !== 'CARD') return false;
       if (txSearchQuery.trim()) {
         const q = txSearchQuery.toLowerCase();
         const matchesId = tx.id.toLowerCase().includes(q);
         const matchesCashier = tx.cashierName.toLowerCase().includes(q);
-        const matchesCustomer = tx.customerName?.toLowerCase().includes(q);
         const matchesItem = tx.items.some((i) => i.name.toLowerCase().includes(q));
-        return matchesId || matchesCashier || matchesCustomer || matchesItem;
+        return matchesId || matchesCashier || matchesItem;
       }
       return true;
     });
@@ -231,7 +223,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
       </div>
 
       {/* 1. Multi-Column Responsive Dashboard Cards (Interactive KPI Blocks) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Gross Sales -> Drills down into Transaction Activity Log */}
         <div
           role="button"
@@ -335,36 +327,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
           </div>
         </div>
 
-        {/* Card 4: Outstanding Utang -> Routes directly to Pautang Tab with Unpaid Balances (Highest First) */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => {
-            triggerHapticFeedback('tap');
-            onOpenPautangBook('HIGHEST_BALANCE');
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onOpenPautangBook('HIGHEST_BALANCE');
-          }}
-          className="rounded-2xl bg-surface border border-theme p-4 shadow-sm space-y-2 cursor-pointer transition-all hover:border-blue-500/40 hover:shadow-md active:scale-[0.99] text-left group w-full"
-        >
-          <div className="flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-muted">
-            <span>{t('dashboard.unpaid_pautang')}</span>
-            <div className="flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-amber-badge" />
-              <ArrowUpRight className="w-3.5 h-3.5 text-muted group-hover:text-amber-badge group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-            </div>
-          </div>
-          <div className="text-2xl font-mono font-black text-amber-badge">
-            {formatPeso(totalPautang)}
-          </div>
-          <div className="text-xs text-[#006AFF] font-mono group-hover:underline flex items-center justify-between pt-1 border-t border-theme">
-            <span>{customers.filter((c) => c.currentBalance > 0).length} active balances</span>
-            <span className="font-bold">Open Ledger →</span>
-          </div>
-        </div>
-
-        {/* Card 5: Low Stock Items -> Routes directly to Inventory Tab pre-filtered to stock <= min_alert */}
+        {/* Card 4: Low Stock Items -> Routes directly to Inventory Tab pre-filtered to stock <= min_alert */}
         <div
           role="button"
           tabIndex={0}
@@ -375,7 +338,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
           onKeyDown={(e) => {
             if (e.key === 'Enter') onOpenLowStockInventory();
           }}
-          className="rounded-2xl bg-surface border border-theme p-4 shadow-sm space-y-2 cursor-pointer transition-all hover:border-blue-500/40 hover:shadow-md active:scale-[0.99] text-left group w-full sm:col-span-2 lg:col-span-1"
+          className="rounded-2xl bg-surface border border-theme p-4 shadow-sm space-y-2 cursor-pointer transition-all hover:border-blue-500/40 hover:shadow-md active:scale-[0.99] text-left group w-full"
         >
           <div className="flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-muted">
             <span>{t('dashboard.low_stock_items')}</span>
@@ -729,14 +692,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTxFilter('PAUTANG')}
+                  onClick={() => setTxFilter('CARD')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    txFilter === 'PAUTANG'
-                      ? 'bg-amber-600 text-white shadow-sm'
+                    txFilter === 'CARD'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-surface-muted text-muted hover:text-primary'
                   }`}
                 >
-                  📒 {brandConfig.creditLabel}
+                  💳 Card / Digital
                 </button>
               </div>
             </div>
@@ -780,16 +743,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                               className={`px-1.5 py-0.5 rounded font-mono font-bold text-[9px] uppercase border ${
                                 tx.type === 'CASH'
                                   ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/40'
-                                  : 'bg-amber-500/15 text-amber-600 border-amber-500/40'
+                                  : 'bg-blue-500/15 text-blue-600 border-blue-500/40'
                               }`}
                             >
                               {tx.type}
                             </span>
-                            {tx.customerName && (
-                              <span className="text-[10px] font-semibold text-muted truncate">
-                                • {tx.customerName}
-                              </span>
-                            )}
                           </div>
                           <div className="text-[11px] text-muted truncate">
                             {tx.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}
@@ -839,14 +797,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = React.memo(({
                           <span>Payment Method:</span>
                           <strong className="text-primary">{activeSelectedTx.type}</strong>
                         </div>
-                        {activeSelectedTx.customerName && (
-                          <div className="flex justify-between">
-                            <span>Customer Ledger:</span>
-                            <strong className="text-amber-700 dark:text-amber-300">
-                              {activeSelectedTx.customerName}
-                            </strong>
-                          </div>
-                        )}
                       </div>
 
                       {/* Line Items */}

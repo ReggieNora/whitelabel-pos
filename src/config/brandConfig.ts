@@ -3,7 +3,6 @@ export interface BrandConfig {
   tagline: string;
   defaultCurrency: string;
   supportedCurrencies: readonly string[];
-  creditLabel: string;
   cashierRoleLabel: string;
   enableLanguageToggle: boolean;
 }
@@ -13,7 +12,6 @@ export const brandConfig: BrandConfig = {
   tagline: 'Universal Cloud Point of Sale',
   defaultCurrency: '$',
   supportedCurrencies: ['$', '₱', '€', '£', '¥'] as const,
-  creditLabel: 'Customer Credit',
   cashierRoleLabel: 'Cashier / Associate',
   enableLanguageToggle: false,
 };

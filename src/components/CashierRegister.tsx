@@ -17,14 +17,12 @@ import {
 import { CATEGORIES } from '../data/mockSariSariData';
 import { CartItem, CategoryId, Product, Role, StaffPermissions } from '../types/pos';
 import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
-import { brandConfig } from '../config/brandConfig';
 import { useLanguage } from '../context/LanguageContext';
 
 interface CashierRegisterProps {
   products: Product[];
   cart: CartItem[];
   currentRole: Role;
-  customerName?: string | null;
   onAddProduct: (product: Product) => void;
   onDecrementProduct: (productId: string) => void;
   onRemoveProduct: (productId: string) => void;
@@ -32,7 +30,6 @@ interface CashierRegisterProps {
   onClearCart: () => void;
   onOpenVoiceModal: () => void;
   onOpenCashModal: (presetBill?: number | null) => void;
-  onOpenPautangModal: () => void;
   onInstantCashSale: (cashTendered: number, changeGiven: number) => void;
   onOpenOcrModal?: () => void;
   permissions?: StaffPermissions;
@@ -409,21 +406,18 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
   products,
   cart,
   currentRole,
-  customerName,
   onAddProduct,
   onDecrementProduct,
   onRemoveProduct,
   onUpdateItemQty,
   onClearCart,
   onOpenCashModal,
-  onOpenPautangModal,
   onOpenOcrModal,
   permissions,
   categories,
 }) => {
   const { t, getCategory, getUnit } = useLanguage();
   const canCheckout = permissions ? permissions.can_checkout : true;
-  const canRecordPautang = permissions ? permissions.can_record_pautang : true;
   const [activeCategory, setActiveCategory] = useState<CategoryId | 'all'>('all');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
@@ -1108,7 +1102,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
             </div>
           </div>
 
-          {/* Action Area: High-visibility Primary CHARGE + Secondary Pautang */}
+          {/* Action Area: High-visibility Primary CHARGE */}
           <div className="space-y-2 pt-1">
             {/* Primary full-width button: [ 💵 Cash / Charge ₱XXX.XX ] */}
             <button
@@ -1131,25 +1125,6 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                   : `${t('ticket.cash_charge')} ${formatPesoExact(subtotal)}`}
               </span>
             </button>
-
-            {/* Secondary button: [ 📒 Charge to Pautang ] */}
-            {canRecordPautang ? (
-              <button
-                type="button"
-                disabled={cart.length === 0}
-                onClick={() => {
-                  triggerHapticFeedback('tap');
-                  onOpenPautangModal();
-                }}
-                className="w-full min-h-[44px] rounded-xl border-2 border-amber-500/70 hover:border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-amber-700 dark:text-amber-400 font-extrabold text-xs uppercase tracking-wide flex items-center justify-center gap-2 transition"
-              >
-                <span>📒 {t('ticket.charge_pautang')}</span>
-              </button>
-            ) : (
-              <div className="text-center py-2 text-[11px] font-mono text-muted bg-surface-muted rounded-xl border border-theme">
-                🔒 {brandConfig.creditLabel} charging disabled for role
-              </div>
-            )}
           </div>
         </div>
       </aside>
@@ -1379,26 +1354,6 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                     : `${t('ticket.cash_charge')} ${formatPesoExact(subtotal)}`}
                 </span>
               </button>
-
-              {/* Secondary CHARGE TO PAUTANG */}
-              {canRecordPautang ? (
-                <button
-                  type="button"
-                  disabled={cart.length === 0}
-                  onClick={() => {
-                    triggerHapticFeedback('tap');
-                    setIsMobileDrawerOpen(false);
-                    onOpenPautangModal();
-                  }}
-                  className="w-full min-h-[44px] rounded-xl border-2 border-amber-500/70 hover:border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-amber-700 dark:text-amber-400 font-extrabold text-xs uppercase tracking-wide flex items-center justify-center gap-2 transition"
-                >
-                  <span>📒 {t('ticket.charge_pautang')}</span>
-                </button>
-              ) : (
-                <div className="text-center py-2 text-[11px] font-mono text-muted bg-surface-muted rounded-xl border border-theme">
-                  🔒 {brandConfig.creditLabel} charging disabled for role
-                </div>
-              )}
 
               {/* Clear Back to Catalog Button */}
               <button

@@ -7,12 +7,10 @@ export interface CompletedSaleSummary {
   shiftTag: string;
   storeName?: string;
   customerPhone?: string;
-  customerNewBalance?: number;
-  customerCreditLimit?: number;
 }
 
 export function formatPlaintextReceipt(order: CompletedSaleSummary): string {
-  const { transaction, storeName, customerNewBalance, customerCreditLimit } = order;
+  const { transaction, storeName } = order;
   const sym = getGlobalCurrency();
   const lines: string[] = [
     storeName ? `${storeName} • ${brandConfig.appName}` : `${brandConfig.appName} Store`,
@@ -35,12 +33,7 @@ export function formatPlaintextReceipt(order: CompletedSaleSummary): string {
     lines.push(`Amount Tendered: ${sym}${tendered}`);
     lines.push(`Change Due: ${sym}${change}`);
   } else {
-    lines.push(`Charged to ${brandConfig.creditLabel} (${transaction.customerName || 'Customer'})`);
-    if (customerNewBalance !== undefined && customerCreditLimit !== undefined) {
-      lines.push(
-        `New Balance: ${sym}${customerNewBalance.toFixed(2)} / ${sym}${customerCreditLimit.toFixed(2)}`
-      );
-    }
+    lines.push(`Payment Method: ${transaction.type}`);
   }
 
   lines.push('------------------------');

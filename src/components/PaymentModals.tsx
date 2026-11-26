@@ -1,18 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  CreditCard,
-  KeyRound,
   Mic,
-  Search,
-  ShieldAlert,
+  ShoppingCart,
   Sparkles,
-  UserCheck,
-  UserPlus,
   Wallet,
 } from 'lucide-react';
-import { Customer, Product, Role } from '../types/pos';
-import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
-import { brandConfig } from '../config/brandConfig';
+import { Product } from '../types/pos';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, triggerHapticFeedback } from '../utils/localDb';
 import {
   ParsedVoiceCommand,
   parseVoiceOrder,
@@ -78,18 +72,18 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
               Total Due
             </span>
             <div className="text-2xl font-mono font-bold text-primary mt-1">
-              {formatPesoExact(subtotal)}
+              {formatCurrencyExact(subtotal)}
             </div>
             <span className="text-[10px] font-mono text-muted">
-              Tendered: {formatPesoExact(tendered)}
+              Tendered: {formatCurrencyExact(tendered)}
             </span>
           </div>
           <div className="rounded-2xl bg-surface-muted border border-emerald-btn p-3.5 shadow-sm">
             <span className="text-[11px] uppercase tracking-wider text-emerald-btn font-bold block">
-              Change Due (Sukli)
+              Change Due
             </span>
             <div className="text-3xl font-mono font-black text-emerald-btn mt-0.5 tracking-tight">
-              {formatPesoExact(change)}
+              {formatCurrencyExact(change)}
             </div>
             <span className="text-[10px] font-mono text-muted">
               {change === 0 ? 'Exact amount' : 'Return to customer'}
@@ -116,7 +110,7 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
                   : 'bg-surface-muted border-theme text-primary hover:border-slate-400 active:scale-95'
               }`}
             >
-              <span>Exact {formatPeso(subtotal)}</span>
+              <span>Exact {formatCurrency(subtotal)}</span>
               <span className="text-[10px] opacity-80">No Change</span>
             </button>
 
@@ -148,7 +142,7 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
                         active ? 'text-blue-100' : 'text-emerald-btn'
                       }`}
                     >
-                      +{formatPeso(bill - subtotal)}
+                      +{formatCurrency(bill - subtotal)}
                     </span>
                   )}
                 </button>
@@ -186,351 +180,7 @@ export const CashCheckoutModal: React.FC<CashModalProps> = ({
         >
           <Wallet className="w-5 h-5 stroke-[2.25]" />
           <span>
-            Complete Sale • Change {formatPesoExact(change)}
-          </span>
-        </button>
-      </div>
-    </NativeModal>
-  );
-};
-
-interface PautangModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  subtotal: number;
-  customers: Customer[];
-  currentRole: Role;
-  ownerPin?: string;
-  preselectedCustomerId?: string | null;
-  onCompletePautang: (customer: Customer, overrideUsed: boolean) => void;
-  onQuickAddCustomer: (name: string, phone: string, creditLimit: number) => Customer;
-}
-
-export const PautangCheckoutModal: React.FC<PautangModalProps> = ({
-  isOpen,
-  onClose,
-  subtotal,
-  customers,
-  currentRole,
-  ownerPin = '9999',
-  preselectedCustomerId,
-  onCompletePautang,
-  onQuickAddCustomer,
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string>(customers[0]?.id || '');
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newLimit, setNewLimit] = useState('500');
-
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [overrideUnlocked, setOverrideUnlocked] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setSearchQuery('');
-      setShowAddForm(false);
-      setPinInput('');
-      setPinError('');
-      setOverrideUnlocked(false);
-      if (preselectedCustomerId && customers.some((c) => c.id === preselectedCustomerId)) {
-        setSelectedId(preselectedCustomerId);
-      } else if (customers[0]) {
-        setSelectedId(customers[0].id);
-      }
-    }
-  }, [isOpen, preselectedCustomerId, customers]);
-
-  const filteredCustomers = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return customers;
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.alias.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q)
-    );
-  }, [customers, searchQuery]);
-
-  const selectedCustomer =
-    customers.find((c) => c.id === selectedId) || filteredCustomers[0] || customers[0];
-  const projectedBalance = selectedCustomer ? selectedCustomer.currentBalance + subtotal : 0;
-  const exceedsCeiling = selectedCustomer
-    ? projectedBalance > selectedCustomer.creditLimit
-    : false;
-  const canConfirm =
-    selectedCustomer && (!exceedsCeiling || overrideUnlocked || currentRole === 'OWNER');
-
-  const handleQuickCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    const limitNum = parseFloat(newLimit) || 500;
-    const created = onQuickAddCustomer(
-      newName.trim(),
-      newPhone.trim() || '0917-000-0000',
-      limitNum
-    );
-    triggerHapticFeedback('success');
-    setSelectedId(created.id);
-    setNewName('');
-    setNewPhone('');
-    setNewLimit('500');
-    setShowAddForm(false);
-  };
-
-  return (
-    <NativeModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`${brandConfig.creditLabel} • Customer Account`}
-      subtitle={`Assign ${formatPesoExact(subtotal)} to customer credit ledger`}
-      accentColor="amber"
-    >
-      <div className="space-y-3">
-        {/* Search Bar + New Customer Quick-Add Toggle */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search customer name or phone..."
-              className="w-full min-h-[46px] pl-9 pr-3 rounded-xl bg-surface-muted border border-theme text-xs text-primary focus:outline-none focus:border-[#2563EB]"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              triggerHapticFeedback('tap');
-              setShowAddForm((prev) => !prev);
-            }}
-            className={`min-h-[46px] px-3 rounded-xl font-semibold text-xs border flex items-center gap-1.5 shrink-0 transition ${
-              showAddForm
-                ? 'bg-[#2563EB] text-white border-[#2563EB]'
-                : 'bg-surface-muted border-theme text-primary hover:border-slate-400'
-            }`}
-          >
-            <UserPlus className="w-4 h-4 text-[#2563EB]" />
-            <span>{showAddForm ? 'Cancel' : '+ New'}</span>
-          </button>
-        </div>
-
-        {/* Inline New Customer Quick-Add Form */}
-        {showAddForm && (
-          <form
-            onSubmit={handleQuickCreate}
-            className="rounded-2xl bg-surface-muted border border-theme p-3 space-y-2.5 shadow-sm"
-          >
-            <div className="text-xs font-bold uppercase tracking-wider text-primary">
-              New Customer Quick-Add
-            </div>
-            <input
-              type="text"
-              required
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Full Name / Customer Name"
-              className="w-full min-h-[44px] rounded-xl bg-surface border border-theme px-3 text-xs text-primary"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="tel"
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="Phone (0917-...)"
-                className="w-full min-h-[44px] rounded-xl bg-surface border border-theme px-3 text-xs text-primary font-mono"
-              />
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-muted font-mono">
-                  Limit {getGlobalCurrency()}
-                </span>
-                <input
-                  type="number"
-                  value={newLimit}
-                  onChange={(e) => setNewLimit(e.target.value)}
-                  className="w-full min-h-[44px] rounded-xl bg-surface border border-theme pl-14 pr-3 text-xs text-primary font-mono font-bold"
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              className="w-full min-h-[46px] rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm"
-            >
-              Save &amp; Select Customer
-            </button>
-          </form>
-        )}
-
-        {/* Neighborhood Regulars List */}
-        <div className="space-y-2 max-h-[250px] overflow-y-auto pr-0.5">
-          {filteredCustomers.map((cust) => {
-            const isSelected = cust.id === selectedCustomer?.id;
-            const newBal = cust.currentBalance + subtotal;
-            const willExceed = newBal > cust.creditLimit;
-            const currentPct = Math.min(
-              100,
-              Math.round((cust.currentBalance / cust.creditLimit) * 100)
-            );
-            const projectedPct = Math.min(
-              100,
-              Math.round((newBal / cust.creditLimit) * 100)
-            );
-
-            const statusColor =
-              cust.status === 'Good Standing'
-                ? 'bg-emerald-btn/15 text-emerald-btn border-emerald-btn/40'
-                : cust.status === 'Near Limit'
-                  ? 'bg-amber-badge/15 text-amber-badge border-amber-badge/40'
-                  : 'bg-red-500/15 text-red-500 border-red-500/40';
-
-            return (
-              <button
-                key={cust.id}
-                type="button"
-                onClick={() => {
-                  triggerHapticFeedback('tap');
-                  setSelectedId(cust.id);
-                  setOverrideUnlocked(false);
-                  setPinError('');
-                }}
-                className={`w-full text-left p-3 rounded-2xl border transition min-h-[76px] shadow-sm ${
-                  isSelected
-                    ? willExceed
-                      ? 'bg-surface-muted border-red-500 ring-1 ring-red-500/50'
-                      : 'bg-surface-muted border-amber-badge ring-1 ring-amber-badge/50'
-                    : 'bg-surface-muted/80 border-theme hover:border-slate-400'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-bold text-sm text-primary flex items-center gap-1.5 flex-wrap">
-                      <span>{cust.name}</span>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${statusColor}`}
-                      >
-                        {cust.status}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-muted mt-0.5">{cust.alias}</p>
-                  </div>
-
-                  <div className="text-right font-mono shrink-0">
-                    <div className="text-xs text-muted">
-                      <span className="font-bold text-primary">
-                        {formatPesoExact(cust.currentBalance)}
-                      </span>{' '}
-                      <span className="text-[10px] text-muted">
-                        / {formatPeso(cust.creditLimit)}
-                      </span>
-                    </div>
-                    <div
-                      className={`text-[11px] font-bold mt-0.5 ${
-                        willExceed ? 'text-red-500' : 'text-amber-badge'
-                      }`}
-                    >
-                      After: {formatPesoExact(newBal)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Credit Limit Progress Bar */}
-                <div className="w-full h-2 bg-surface rounded-full overflow-hidden mt-2 border border-theme">
-                  <div
-                    className={`h-full transition-all ${
-                      willExceed
-                        ? 'bg-red-500'
-                        : projectedPct >= 75
-                          ? 'bg-amber-badge'
-                          : 'bg-emerald-btn'
-                    }`}
-                    style={{ width: `${isSelected ? projectedPct : currentPct}%` }}
-                  />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Credit Limit Exceeded Enforcement & Manager PIN Override */}
-        {selectedCustomer && exceedsCeiling && (
-          <div className="rounded-2xl bg-red-500/10 border border-red-500/40 p-3 text-xs space-y-2.5">
-            <div className="flex items-start gap-2 text-red-500 font-semibold">
-              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Credit Limit Exceeded! {selectedCustomer.name}&apos;s new balance (
-                {formatPesoExact(projectedBalance)}) exceeds their{' '}
-                {formatPeso(selectedCustomer.creditLimit)} limit by{' '}
-                {formatPesoExact(projectedBalance - selectedCustomer.creditLimit)}.
-              </span>
-            </div>
-
-            {currentRole === 'CASHIER' && !overrideUnlocked && (
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <KeyRound className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="password"
-                    maxLength={4}
-                    value={pinInput}
-                    onChange={(e) => {
-                      setPinInput(e.target.value);
-                      setPinError('');
-                    }}
-                    placeholder="Owner PIN to override"
-                    className="w-full min-h-[42px] pl-8 pr-2 rounded-xl bg-surface border border-theme font-mono text-xs text-primary"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (pinInput === ownerPin) {
-                      triggerHapticFeedback('success');
-                      setOverrideUnlocked(true);
-                      setPinError('');
-                    } else {
-                      triggerHapticFeedback('warning');
-                      setPinError('Invalid Owner PIN. Please try again.');
-                    }
-                  }}
-                  className="min-h-[42px] px-3 rounded-xl bg-amber-badge hover:opacity-95 text-white font-bold text-xs uppercase shrink-0"
-                >
-                  Unlock
-                </button>
-              </div>
-            )}
-            {pinError && <p className="text-[11px] text-amber-badge font-semibold">{pinError}</p>}
-            {overrideUnlocked && (
-              <p className="text-[11px] text-emerald-btn font-bold">
-                ✓ Owner PIN Verified — One-time credit ceiling override unlocked.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* 1-Tap Confirm Pautang Button (bg-amber-badge) */}
-        <button
-          type="button"
-          disabled={!canConfirm}
-          onClick={() => {
-            if (!selectedCustomer) return;
-            triggerHapticFeedback('success');
-            onCompletePautang(selectedCustomer, exceedsCeiling);
-          }}
-          className={`w-full min-h-[56px] rounded-xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition ${
-            canConfirm
-              ? 'bg-amber-badge hover:opacity-95 text-white active:scale-[0.99]'
-              : 'bg-surface-muted border border-theme text-muted/50 cursor-not-allowed'
-          }`}
-        >
-          <UserCheck className="w-5 h-5 stroke-[2.25]" />
-          <span>
-            {exceedsCeiling
-              ? `Confirm Override ${brandConfig.creditLabel} (${formatCurrencyExact(subtotal)})`
-              : `Confirm ${brandConfig.creditLabel} • ${selectedCustomer?.name || 'Customer'}`}
+            Complete Sale • Change {formatCurrencyExact(change)}
           </span>
         </button>
       </div>
@@ -656,7 +306,7 @@ export const VoiceDictationModal: React.FC<VoiceModalProps> = ({
               Parsed Items ({parsed.matchedItems.length})
             </span>
             <span className="font-mono font-bold text-primary">
-              Subtotal: {formatPesoExact(parsedSubtotal)}
+              Subtotal: {formatCurrencyExact(parsedSubtotal)}
             </span>
           </div>
 
@@ -670,7 +320,7 @@ export const VoiceDictationModal: React.FC<VoiceModalProps> = ({
                   {product.icon} {qty}× {product.shortName}
                 </span>
                 <span className="font-mono text-emerald-btn font-bold">
-                  {formatPeso(product.sellingPrice * qty)}
+                  {formatCurrency(product.sellingPrice * qty)}
                 </span>
               </div>
             ))}
@@ -680,13 +330,13 @@ export const VoiceDictationModal: React.FC<VoiceModalProps> = ({
             <span className="text-muted">
               Mode:{' '}
               <strong className="text-primary">
-                {parsed.suggestedPaymentMethod === 'PAUTANG' ? 'PAUTANG' : 'CASH'}
+                {parsed.suggestedPaymentMethod === 'CARD' ? 'CARD' : 'CASH'}
               </strong>
               {parsed.tenderedCash ? ` (Bill: ${formatCurrency(parsed.tenderedCash)})` : ''}
             </span>
             {parsedChange !== null && (
               <span className="font-mono font-bold text-emerald-btn">
-                Change: {formatPesoExact(parsedChange)}
+                Change: {formatCurrencyExact(parsedChange)}
               </span>
             )}
           </div>
@@ -701,7 +351,7 @@ export const VoiceDictationModal: React.FC<VoiceModalProps> = ({
           }}
           className="w-full min-h-[56px] rounded-xl bg-emerald-btn hover:opacity-95 text-white font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] transition disabled:opacity-40"
         >
-          <CreditCard className="w-5 h-5 stroke-[2.25]" />
+          <ShoppingCart className="w-5 h-5 stroke-[2.25]" />
           <span>Populate Cart &amp; Open Checkout</span>
         </button>
       </div>

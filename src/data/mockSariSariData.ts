@@ -2,9 +2,6 @@ import { brandConfig } from '../config/brandConfig';
 import {
   AuditLogEntry,
   CategoryMeta,
-  CreditPayment,
-  Customer,
-  CustomerCreditStatus,
   OcrInvoicePreset,
   Product,
   ShiftRecord,
@@ -13,17 +10,6 @@ import {
   UserProfile,
 } from '../types/pos';
 import { CATALOG_PRESETS } from './catalogPresets';
-
-export function computeCustomerStatus(
-  balance: number,
-  limit: number,
-  oldestDebtDays: number
-): CustomerCreditStatus {
-  if (balance <= 0) return 'Good Standing';
-  if (oldestDebtDays >= 14 || balance > limit) return 'Overdue';
-  if (balance / limit >= 0.75) return 'Near Limit';
-  return 'Good Standing';
-}
 
 export const CATEGORIES: CategoryMeta[] = [
   { id: 'favorites', label: 'Top / Favorites', shortLabel: 'Favorites', emoji: '⭐', color: '#4F46E5' },
@@ -61,57 +47,6 @@ export const INITIAL_PRODUCTS: Product[] = CATALOG_PRESETS.RETAIL_CONVENIENCE.pr
   (p) => ({ ...p })
 );
 
-export const INITIAL_CUSTOMERS: Customer[] = [
-  {
-    id: 'cust-sarah',
-    name: 'Sarah Jenkins',
-    alias: 'VIP Client • Studio 4',
-    phone: '+1-555-0142',
-    creditLimit: 250.0,
-    currentBalance: 78.5,
-    status: 'Good Standing',
-    oldestDebtDays: 3,
-    oldestDebtAt: '3 days ago',
-    lastTransactionNote: '2x Cold Brew Can, 1x Organic Chips',
-  },
-  {
-    id: 'cust-marcus',
-    name: 'Marcus Vance',
-    alias: 'Local Member • #108',
-    phone: '+1-555-0188',
-    creditLimit: 150.0,
-    currentBalance: 142.0,
-    status: 'Near Limit',
-    oldestDebtDays: 5,
-    oldestDebtAt: '5 days ago',
-    lastTransactionNote: '1x Phone Cable, 1x Notebook',
-  },
-  {
-    id: 'cust-elena',
-    name: 'Elena Rostova',
-    alias: 'Corporate Account • Tech Hub',
-    phone: '+1-555-0193',
-    creditLimit: 500.0,
-    currentBalance: 460.0,
-    status: 'Overdue',
-    oldestDebtDays: 16,
-    oldestDebtAt: '16 days ago',
-    lastTransactionNote: 'Bulk office beverages & snacks',
-  },
-  {
-    id: 'cust-david',
-    name: 'David Kim',
-    alias: 'Freelancer • Co-work Suite',
-    phone: '+1-555-0127',
-    creditLimit: 200.0,
-    currentBalance: 35.0,
-    status: 'Good Standing',
-    oldestDebtDays: 2,
-    oldestDebtAt: '2 days ago',
-    lastTransactionNote: '1x Bottled Water, 1x Notebook',
-  },
-];
-
 export const INITIAL_SHIFTS: ShiftRecord[] = [
   {
     id: 'shf-active-morning',
@@ -121,9 +56,7 @@ export const INITIAL_SHIFTS: ShiftRecord[] = [
     startedAt: '08:00 AM Today',
     openingCash: 200.0,
     cashSalesTotal: 345.5,
-    pautangSalesTotal: 78.5,
-    repaymentsCollectedTotal: 50.0,
-    expectedDrawerCash: 595.5,
+    expectedDrawerCash: 545.5,
     status: 'ACTIVE',
     notes: 'Active morning shift — register engine running smoothly',
   },
@@ -136,10 +69,8 @@ export const INITIAL_SHIFTS: ShiftRecord[] = [
     endedAt: '10:00 PM Yesterday',
     openingCash: 200.0,
     cashSalesTotal: 420.0,
-    pautangSalesTotal: 65.0,
-    repaymentsCollectedTotal: 35.0,
-    expectedDrawerCash: 655.0,
-    blindCountedCash: 655.0,
+    expectedDrawerCash: 620.0,
+    blindCountedCash: 620.0,
     discrepancy: 0.0,
     status: 'CLOSED_MATCH',
     notes: 'Balanced night shift handover.',
@@ -153,11 +84,11 @@ export const INITIAL_TRANSACTIONS: TransactionRecord[] = [
     timestampMs: Date.now() - 1000 * 60 * 25,
     cashierId: 'usr-cashier-1',
     cashierName: 'Maria Santos',
-    type: 'PAUTANG',
+    type: 'CASH',
     totalAmount: 12.75,
     totalWholesaleCost: 6.05,
-    customerId: 'cust-sarah',
-    customerName: 'Sarah Jenkins',
+    cashTendered: 15.0,
+    changeGiven: 2.25,
     items: [
       {
         productId: 'ret-cold-brew',
@@ -242,33 +173,6 @@ export const INITIAL_TRANSACTIONS: TransactionRecord[] = [
   },
 ];
 
-export const INITIAL_CREDIT_PAYMENTS: CreditPayment[] = [
-  {
-    id: 'PAY-501',
-    customerId: 'cust-sarah',
-    customerName: 'Sarah Jenkins',
-    amountPaid: 50.0,
-    balanceAfter: 78.5,
-    receivedByUserId: 'usr-cashier-1',
-    receivedByName: 'Maria Santos',
-    createdAt: 'Yesterday, 04:20 PM',
-    timestampMs: Date.now() - 1000 * 60 * 60 * 18,
-    note: 'Weekly customer credit payment',
-  },
-  {
-    id: 'PAY-500',
-    customerId: 'cust-david',
-    customerName: 'David Kim',
-    amountPaid: 35.0,
-    balanceAfter: 0.0,
-    receivedByUserId: 'usr-owner-1',
-    receivedByName: 'Alex Morgan',
-    createdAt: '2 days ago',
-    timestampMs: Date.now() - 1000 * 60 * 60 * 50,
-    note: 'Full invoice balance clearance',
-  },
-];
-
 export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: 'aud-101',
@@ -282,23 +186,13 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   },
   {
     id: 'aud-102',
-    timestamp: '10:42 AM Today',
-    actorName: 'Maria Santos',
-    actorRole: 'CASHIER',
-    eventType: 'PAUTANG_CREDIT',
+    timestamp: '09:30 AM Today',
+    actorName: 'Alex Morgan',
+    actorRole: 'OWNER',
+    eventType: 'PRICE_EDIT',
     severity: 'INFO',
-    summary: 'Recorded $12.75 Customer Credit to Sarah Jenkins',
-    detail: 'New Balance: $78.50 / $250.00 Credit Limit (Good Standing)',
-  },
-  {
-    id: 'aud-103',
-    timestamp: 'Yesterday',
-    actorName: 'Maria Santos',
-    actorRole: 'CASHIER',
-    eventType: 'PAUTANG_REPAYMENT',
-    severity: 'INFO',
-    summary: 'Collected $50.00 Repayment from Sarah Jenkins',
-    detail: 'Account balance successfully reduced to $78.50',
+    summary: 'Updated Retail Price for Cold Brew Can',
+    detail: 'Price adjusted from $4.25 to $4.50 (Margin: 53.3%)',
   },
 ];
 
