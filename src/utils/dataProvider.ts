@@ -109,25 +109,70 @@ export function loadEnvironmentSnapshot(mode: EnvironmentMode): StoreStateSnapsh
   }
 
   // DEMO Mode: Load from demo_ namespace (or fallback to initial mock state)
+  const rawProfile = loadSnapshotFromLocal(`${DEMO_PREFIX}profile_v2`, DEMO_STORE_PROFILE);
+  const profile: StoreProfile = {
+    ...rawProfile,
+    storeName:
+      !rawProfile.storeName ||
+      rawProfile.storeName.includes('pesOS') ||
+      rawProfile.storeName.includes('Sari-Sari') ||
+      rawProfile.storeName.includes('Aling Nena')
+        ? `${brandConfig.appName} Demo Store`
+        : rawProfile.storeName,
+    currencySymbol: rawProfile.currencySymbol || brandConfig.defaultCurrency,
+  };
+
+  const rawProducts = loadSnapshotFromLocal(
+    `${DEMO_PREFIX}products_v2`,
+    loadSnapshotFromLocal('products_v2', INITIAL_PRODUCTS)
+  );
+  // Auto-migrate legacy sari-sari cached products
+  const hasLegacySariSari =
+    !Array.isArray(rawProducts) ||
+    rawProducts.length === 0 ||
+    rawProducts.some(
+      (p) =>
+        p.sku?.includes('BEV-COKE') ||
+        p.sku?.includes('PANTENE') ||
+        p.name?.includes('Kasalo') ||
+        p.name?.includes('Sinandomeng')
+    );
+  const products = hasLegacySariSari ? INITIAL_PRODUCTS : rawProducts;
+
+  const rawCustomers = loadSnapshotFromLocal(
+    `${DEMO_PREFIX}customers_v2`,
+    loadSnapshotFromLocal('customers_v2', INITIAL_CUSTOMERS)
+  );
+  const hasLegacyCustomers =
+    !Array.isArray(rawCustomers) ||
+    rawCustomers.some((c) => c.name?.includes('Marites') || c.name?.includes('Boyong'));
+  const customers = hasLegacyCustomers ? INITIAL_CUSTOMERS : rawCustomers;
+
+  const rawShifts = loadSnapshotFromLocal(
+    `${DEMO_PREFIX}shifts_v2`,
+    loadSnapshotFromLocal('shifts_v2', INITIAL_SHIFTS)
+  );
+  const hasLegacyShifts =
+    !Array.isArray(rawShifts) ||
+    rawShifts.some((s) => s.notes?.includes('pautang engine active') || s.cashierName === 'Kuya Jun');
+  const shifts = hasLegacyShifts ? INITIAL_SHIFTS : rawShifts;
+
+  const rawTransactions = loadSnapshotFromLocal(
+    `${DEMO_PREFIX}transactions_v2`,
+    loadSnapshotFromLocal('transactions_v2', INITIAL_TRANSACTIONS)
+  );
+  const hasLegacyTransactions =
+    !Array.isArray(rawTransactions) ||
+    rawTransactions.some((tx) => tx.customerName?.includes('Marites') || tx.customerName?.includes('Boyong'));
+  const transactions = hasLegacyTransactions ? INITIAL_TRANSACTIONS : rawTransactions;
+
   return {
-    profile: loadSnapshotFromLocal(`${DEMO_PREFIX}profile_v2`, DEMO_STORE_PROFILE),
+    profile,
     users: loadSnapshotFromLocal(`${DEMO_PREFIX}users_v2`, USERS),
-    products: loadSnapshotFromLocal(
-      `${DEMO_PREFIX}products_v2`,
-      loadSnapshotFromLocal('products_v2', INITIAL_PRODUCTS)
-    ),
-    customers: loadSnapshotFromLocal(
-      `${DEMO_PREFIX}customers_v2`,
-      loadSnapshotFromLocal('customers_v2', INITIAL_CUSTOMERS)
-    ),
-    shifts: loadSnapshotFromLocal(
-      `${DEMO_PREFIX}shifts_v2`,
-      loadSnapshotFromLocal('shifts_v2', INITIAL_SHIFTS)
-    ),
-    transactions: loadSnapshotFromLocal(
-      `${DEMO_PREFIX}transactions_v2`,
-      loadSnapshotFromLocal('transactions_v2', INITIAL_TRANSACTIONS)
-    ),
+    products,
+    customers,
+    shifts,
+    transactions,
     creditPayments: loadSnapshotFromLocal(
       `${DEMO_PREFIX}credit_payments_v2`,
       loadSnapshotFromLocal('credit_payments_v2', INITIAL_CREDIT_PAYMENTS)

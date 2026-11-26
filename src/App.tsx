@@ -44,8 +44,16 @@ import {
   USERS,
 } from './data/mockSariSariData';
 import {
+  CATALOG_PRESETS,
+  PRESET_OPTIONS,
+  getStarterProductsForPreset,
+  getStarterCategoriesForPreset,
+} from './data/catalogPresets';
+import {
   AuditLogEntry,
   CartItem,
+  CategoryMeta,
+  CatalogPresetType,
   CreditPayment,
   Customer,
   EnvironmentMode,
@@ -104,9 +112,12 @@ import {
 } from './utils/supabaseStoreService';
 import { supabase } from './utils/supabase';
 import {
+  formatCurrency,
+  formatCurrencyExact,
   formatPesoExact,
   triggerHapticFeedback,
   saveSnapshotToIndexedDB,
+  loadSnapshotFromLocal,
 } from './utils/localDb';
 import { CompletedSaleSummary } from './utils/receiptFormatter';
 import { ParsedVoiceCommand } from './utils/voiceParser';
@@ -223,6 +234,81 @@ export function App() {
   const [storeProfile, setStoreProfile] = useState<StoreProfile>(
     initialSnapshot.profile
   );
+
+  // Active Industry Preset for Demo Mode
+  const [activeIndustryPreset, setActiveIndustryPreset] = useState<CatalogPresetType>(
+    () => (initialSnapshot.profile.businessType as CatalogPresetType) || 'RETAIL_CONVENIENCE'
+  );
+
+  // Store Categories (supporting presets and custom additions)
+  const [categories, setCategories] = useState<CategoryMeta[]>(() => {
+    const saved = loadSnapshotFromLocal<CategoryMeta[] | null>(
+      `${environmentMode === 'DEMO' ? 'demo_' : 'live_'}categories_v2`,
+      null
+    );
+    if (saved && saved.length > 0) return saved;
+    const initialPreset = (initialSnapshot.profile.businessType as CatalogPresetType) || 'RETAIL_CONVENIENCE';
+    return getStarterCategoriesForPreset(initialPreset);
+  });
+
+  const handleAddCategory = (newCat: CategoryMeta) => {
+    setCategories((prev) => {
+      const exists = prev.some((c) => c.id === newCat.id);
+      const next = exists ? prev.map((c) => (c.id === newCat.id ? newCat : c)) : [...prev, newCat];
+      saveSnapshotToIndexedDB(`${environmentMode === 'DEMO' ? 'demo_' : 'live_'}categories_v2`, next);
+      return next;
+    });
+    showToast(`Category "${newCat.label}" created!`);
+  };
+
+  const handleRenameCategory = (catId: string, newLabel: string) => {
+    setCategories((prev) => {
+      const next = prev.map((c) =>
+        c.id === catId ? { ...c, label: newLabel, shortLabel: newLabel.slice(0, 14) } : c
+      );
+      saveSnapshotToIndexedDB(`${environmentMode === 'DEMO' ? 'demo_' : 'live_'}categories_v2`, next);
+      return next;
+    });
+    showToast(`Category renamed to "${newLabel}"`);
+  };
+
+  const handleDeleteCategory = (catId: string) => {
+    setCategories((prev) => {
+      const next = prev.filter((c) => c.id !== catId);
+      saveSnapshotToIndexedDB(`${environmentMode === 'DEMO' ? 'demo_' : 'live_'}categories_v2`, next);
+      return next;
+    });
+    setProducts((prev) =>
+      prev.map((p) => (p.category === catId ? { ...p, category: 'packaged_goods' } : p))
+    );
+    showToast(`Category deleted`);
+  };
+
+  const handleSwitchDemoIndustry = (preset: CatalogPresetType) => {
+    triggerHapticFeedback('tap');
+    const newProducts = getStarterProductsForPreset(preset);
+    const newCategories = getStarterCategoriesForPreset(preset);
+    const presetDef = CATALOG_PRESETS[preset];
+
+    setActiveIndustryPreset(preset);
+    setProducts(newProducts);
+    setCategories(newCategories);
+    setCart([]); // Clean cart for fresh catalog testing
+
+    const updatedProfile: StoreProfile = {
+      ...storeProfile,
+      businessType: preset,
+      storeName: `${brandConfig.appName} Demo Store`,
+    };
+    setStoreProfile(updatedProfile);
+
+    // Save to demo snapshots
+    saveSnapshotToIndexedDB('demo_products_v2', newProducts);
+    saveSnapshotToIndexedDB('demo_categories_v2', newCategories);
+    saveSnapshotToIndexedDB('demo_profile_v2', updatedProfile);
+
+    showToast(`Switched catalog to ${presetDef?.title || preset}!`);
+  };
 
   useEffect(() => {
     setGlobalCurrency(storeProfile.currencySymbol || brandConfig.defaultCurrency);
@@ -706,8 +792,8 @@ export function App() {
 
         const storeProfile: StoreProfile = {
           id: store.id,
-          storeName: store.store_name || store.name || "Aling Nena's Sari-Sari",
-          barangayCity: store.barangay_location || store.location || 'Local Barangay Store',
+          storeName: store.store_name || store.name || `${brandConfig.appName} Store`,
+          barangayCity: store.barangay_location || store.location || 'Flagship Branch #1',
           ownerPhone: store.phone || '',
           ownerName,
           createdAt: store.created_at || 'Today',
@@ -1025,7 +1111,10 @@ export function App() {
         if (!inCart) return prod;
         return {
           ...prod,
-          stockQty: Math.max(0, prod.stockQty - inCart.qty),
+          stockQty:
+            prod.trackStock === false
+              ? prod.stockQty
+              : Math.max(0, prod.stockQty - inCart.qty),
           daysSinceLastSale: 0,
         };
       })
@@ -1596,24 +1685,52 @@ export function App() {
                       </span>
                     </button>
 
-                    {/* If DEMO mode, provide Reset Demo option */}
+                    {/* If DEMO mode, provide Reset Demo option & Industry Switcher */}
                     {environmentMode === 'DEMO' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsStoreSettingsOpen(false);
-                          handleResetDemoData();
-                        }}
-                        className="w-full py-2.5 px-3 rounded-xl bg-surface-muted hover:bg-slate-200 dark:hover:bg-slate-700/60 border border-theme text-primary font-bold text-xs flex items-center justify-between transition cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <RotateCcw className="w-4 h-4 text-amber-badge" />
-                          <span>Reset Demo Data</span>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsStoreSettingsOpen(false);
+                            handleResetDemoData();
+                          }}
+                          className="w-full py-2.5 px-3 rounded-xl bg-surface-muted hover:bg-slate-200 dark:hover:bg-slate-700/60 border border-theme text-primary font-bold text-xs flex items-center justify-between transition cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <RotateCcw className="w-4 h-4 text-amber-badge" />
+                            <span>Reset Demo Data</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-amber-badge">
+                            Reset
+                          </span>
+                        </button>
+
+                        <div className="pt-2 border-t border-theme space-y-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted block px-1">
+                            Switch Demo Industry
+                          </span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {PRESET_OPTIONS.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  handleSwitchDemoIndustry(p.id);
+                                  setIsStoreSettingsOpen(false);
+                                }}
+                                className={`p-2 rounded-xl text-left border transition text-xs flex items-center gap-1.5 cursor-pointer ${
+                                  activeIndustryPreset === p.id
+                                    ? 'bg-blue-600/20 text-blue-500 border-blue-500 font-bold'
+                                    : 'bg-surface-muted border-theme text-primary hover:bg-surface'
+                                }`}
+                              >
+                                <span>{p.icon}</span>
+                                <span className="truncate">{p.title.split(' ')[0]}</span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <span className="text-[10px] font-mono text-amber-badge">
-                          Reset
-                        </span>
-                      </button>
+                      </>
                     )}
                   </div>
 
@@ -1641,6 +1758,41 @@ export function App() {
           </div>
         </header>
 
+        {/* Interactive Demo Mode Industry Switcher Banner */}
+        {environmentMode === 'DEMO' && (
+          <div className="w-full bg-slate-900 border-b border-slate-800 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 z-30 shrink-0 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Demo Catalog
+              </span>
+              <span className="text-slate-300 font-medium hidden sm:inline">
+                Industry:
+              </span>
+            </div>
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+              {PRESET_OPTIONS.map((preset) => {
+                const isActive = activeIndustryPreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleSwitchDemoIndustry(preset.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400 font-bold'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <span>{preset.icon}</span>
+                    <span>{preset.title.split(' ')[0]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Floating Non-Disruptive Toast Notification (Fixed Overlay) */}
         {toastMessage && (
           <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none toast-floating-container">
@@ -1657,6 +1809,7 @@ export function App() {
             <CashierRegister
               products={products}
               cart={cart}
+              categories={categories}
               currentRole={currentUser.role}
               permissions={activeStaffMember.permissions}
               customerName={activeCustomer?.name}
@@ -1748,7 +1901,7 @@ export function App() {
                     eventType: 'PRICE_EDIT',
                     severity: 'INFO',
                     summary: `Updated details for ${updates.name}`,
-                    detail: `Retail: ${formatPesoExact(updates.sellingPrice)} • Min Alert: ${updates.lowStockThreshold}`,
+                    detail: `Retail: ${formatCurrencyExact(updates.sellingPrice)} • Min Alert: ${updates.lowStockThreshold}`,
                   },
                   ...prev,
                 ]);
@@ -1779,7 +1932,7 @@ export function App() {
                       eventType: 'PRICE_EDIT',
                       severity: 'INFO',
                       summary: `Created item ${savedProduct.shortName}`,
-                      detail: `Category: ${savedProduct.category} • SRP: ${formatPesoExact(savedProduct.sellingPrice)} • Stock: ${savedProduct.stockQty}`,
+                      detail: `Category: ${savedProduct.category} • SRP: ${formatCurrencyExact(savedProduct.sellingPrice)} • Stock: ${savedProduct.stockQty}`,
                     },
                     ...prev,
                   ]);
@@ -1797,7 +1950,7 @@ export function App() {
                       eventType: 'PRICE_EDIT',
                       severity: 'INFO',
                       summary: `Updated item profile for ${savedProduct.shortName}`,
-                      detail: `SRP: ${formatPesoExact(savedProduct.sellingPrice)} • Stock: ${savedProduct.stockQty}`,
+                      detail: `SRP: ${formatCurrencyExact(savedProduct.sellingPrice)} • Stock: ${savedProduct.stockQty}`,
                     },
                     ...prev,
                   ]);
@@ -1806,6 +1959,10 @@ export function App() {
               }}
               onCommitOcrInvoice={handleCommitOcrInvoice}
               initialFilterLowOnly={inventoryFilterLowOnly}
+              categories={categories}
+              onAddCategory={handleAddCategory}
+              onRenameCategory={handleRenameCategory}
+              onDeleteCategory={handleDeleteCategory}
             />
           )}
 
@@ -2226,6 +2383,8 @@ export function App() {
         googleUser={googleUser}
         initialTab={storeSettingsInitialTab}
         onUpdateCurrency={handleUpdateCurrency}
+        onSwitchDemoIndustry={handleSwitchDemoIndustry}
+        activeIndustryPreset={activeIndustryPreset}
       />
 
       {/* Quick Cashier / Worker Switch Keypad Modal */}

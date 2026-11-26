@@ -72,6 +72,8 @@ export interface CategoryMeta {
   label: string;
   shortLabel: string;
   emoji: string;
+  color?: string;
+  isCustom?: boolean;
 }
 
 export interface Product {
@@ -95,6 +97,7 @@ export interface Product {
   image_url?: string;
   image?: string;
   emoji?: string;
+  trackStock?: boolean;
 }
 
 export interface CartItem {

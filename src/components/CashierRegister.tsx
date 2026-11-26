@@ -36,6 +36,7 @@ interface CashierRegisterProps {
   onInstantCashSale: (cashTendered: number, changeGiven: number) => void;
   onOpenOcrModal?: () => void;
   permissions?: StaffPermissions;
+  categories?: import('../types/pos').CategoryMeta[];
 }
 
 // Dynamic category color schemes, background tints, and card accents
@@ -289,15 +290,15 @@ const CATEGORY_FOLDER_TILES: CategoryFolderDef[] = [
   },
   {
     id: 'rice',
-    name: 'Rice / Bigas',
+    name: 'Pantry & Grains',
     emoji: '🌾',
     bgClass: 'bg-[#15803D] hover:bg-green-700',
     activeRing: 'ring-4 ring-green-300',
   },
   {
     id: 'tobacco',
-    name: 'Tobacco & Candy',
-    emoji: '🚬',
+    name: 'Specialty & Sundries',
+    emoji: '🏷️',
     bgClass: 'bg-[#D97706] hover:bg-amber-700',
     activeRing: 'ring-4 ring-amber-300',
   },
@@ -418,6 +419,7 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
   onOpenPautangModal,
   onOpenOcrModal,
   permissions,
+  categories,
 }) => {
   const { t, getCategory, getUnit } = useLanguage();
   const canCheckout = permissions ? permissions.can_checkout : true;
@@ -502,12 +504,44 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
   };
 
   const relevantFolderTiles = useMemo(() => {
-    const matched = CATEGORY_FOLDER_TILES.filter((cat) => {
+    const tileMap = new Map<string, CategoryFolderDef>();
+    CATEGORY_FOLDER_TILES.forEach((t) => tileMap.set(t.id, t));
+
+    // Dynamic support for store-configured and custom categories
+    if (categories && categories.length > 0) {
+      categories.forEach((c) => {
+        if (!tileMap.has(c.id)) {
+          tileMap.set(c.id, {
+            id: c.id,
+            name: c.label || c.shortLabel || c.id,
+            emoji: c.emoji || '🏷️',
+            bgClass: 'bg-indigo-700 hover:bg-indigo-800',
+            activeRing: 'ring-4 ring-indigo-300',
+          });
+        }
+      });
+    }
+
+    // Auto-discover any active categories from products not already mapped
+    products.forEach((p) => {
+      if (p.category && !tileMap.has(p.category)) {
+        tileMap.set(p.category, {
+          id: p.category,
+          name: p.category.charAt(0).toUpperCase() + p.category.slice(1).replace(/_/g, ' '),
+          emoji: '🏷️',
+          bgClass: 'bg-slate-700 hover:bg-slate-800',
+          activeRing: 'ring-4 ring-slate-300',
+        });
+      }
+    });
+
+    const allTiles = Array.from(tileMap.values());
+    const matched = allTiles.filter((cat) => {
       const count = getCategoryItemCount(cat.id);
       return count > 0 || cat.id === activeCategory;
     });
-    return matched.length > 0 ? matched : CATEGORY_FOLDER_TILES.slice(0, 4);
-  }, [products, activeCategory]);
+    return matched.length > 0 ? matched : allTiles.slice(0, 4);
+  }, [products, activeCategory, categories]);
 
   const categoryTabList: { id: CategoryId | 'all'; label: string; emoji: string }[] = useMemo(() => {
     const list: { id: CategoryId | 'all'; label: string; emoji: string }[] = [
@@ -853,7 +887,8 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                   const inCartQty = cartQtyMap.get(product.id) || 0;
                   const itemCatTheme = CATEGORY_THEMES[product.category] || CATEGORY_THEMES.all;
                   const initials = getProductInitials(product.shortName);
-                  const isLowStock = product.stockQty <= product.lowStockThreshold;
+                  const isTracked = product.trackStock !== false;
+                  const isLowStock = isTracked && product.stockQty <= product.lowStockThreshold;
                   const isFiltered = activeCategory !== 'all';
 
                   // Apply the category's solid color directly to the outer tile wrapper
@@ -905,6 +940,10 @@ export const CashierRegister: React.FC<CashierRegisterProps> = React.memo(({
                           {inCartQty > 0 ? (
                             <span className="bg-white text-slate-900 font-extrabold text-xs px-2.5 py-0.5 rounded-full shadow-sm">
                               {inCartQty}
+                            </span>
+                          ) : !isTracked ? (
+                            <span className="bg-white/25 text-white backdrop-blur-xs font-bold text-[10px] px-2 py-0.5 rounded-full">
+                              Service
                             </span>
                           ) : isLowStock ? (
                             <span className="bg-black/35 text-amber-200 backdrop-blur-xs font-bold text-xs px-2 py-0.5 rounded-full">

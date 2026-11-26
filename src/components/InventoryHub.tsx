@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Camera,
   Check,
+  Edit2,
   Edit3,
   ExternalLink,
   Lock,
@@ -13,10 +14,13 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Tag,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { CATEGORIES, OCR_INVOICE_PRESETS } from '../data/mockSariSariData';
-import { EnvironmentMode, OcrInvoicePreset, Product, Role, StaffPermissions } from '../types/pos';
-import { formatCurrency, formatCurrencyExact, getGlobalCurrency, formatPeso, formatPesoExact, triggerHapticFeedback } from '../utils/localDb';
+import { CategoryMeta, EnvironmentMode, OcrInvoicePreset, Product, Role, StaffPermissions } from '../types/pos';
+import { formatCurrency, formatCurrencyExact, getGlobalCurrency, triggerHapticFeedback } from '../utils/localDb';
 import { NativeModal } from './NativeModal';
 import { ItemProfileDrawer } from './ItemProfileDrawer';
 import { useLanguage } from '../context/LanguageContext';
@@ -42,6 +46,10 @@ interface InventoryHubProps {
   onSaveProductProfile?: (product: Product, isNew: boolean) => void;
   initialFilterLowOnly?: boolean;
   permissions?: StaffPermissions;
+  categories?: CategoryMeta[];
+  onAddCategory?: (category: CategoryMeta) => void;
+  onRenameCategory?: (categoryId: string, newLabel: string) => void;
+  onDeleteCategory?: (categoryId: string) => void;
 }
 
 export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
@@ -57,12 +65,67 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
   onSaveProductProfile,
   initialFilterLowOnly = false,
   permissions,
+  categories,
+  onAddCategory,
+  onRenameCategory,
+  onDeleteCategory,
 }) => {
   const { t, getCategory, getUnit } = useLanguage();
   const canEditInventory = permissions ? permissions.can_edit_inventory : currentRole === 'OWNER';
   const canViewMargins = permissions ? permissions.can_view_margins : currentRole === 'OWNER';
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLowOnly, setFilterLowOnly] = useState(initialFilterLowOnly);
+
+  // Active Categories (store presets or custom)
+  const activeCategories = useMemo(() => {
+    return categories && categories.length > 0 ? categories : CATEGORIES;
+  }, [categories]);
+
+  // Category Management State
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatEmoji, setNewCatEmoji] = useState('🏷️');
+  const [newCatColor, setNewCatColor] = useState('#0284C7');
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatLabel, setEditingCatLabel] = useState('');
+
+  const handleCreateCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    const catId = newCatName.trim().toLowerCase().replace(/\s+/g, '_');
+    const newCat: CategoryMeta = {
+      id: catId,
+      label: newCatName.trim(),
+      shortLabel: newCatName.trim().slice(0, 14),
+      emoji: newCatEmoji || '🏷️',
+      color: newCatColor || '#0284C7',
+      isCustom: true,
+    };
+    if (onAddCategory) {
+      onAddCategory(newCat);
+    }
+    setNewCatName('');
+    triggerHapticFeedback('success');
+  };
+
+  const handleSaveRename = (catId: string) => {
+    if (!editingCatLabel.trim()) return;
+    if (onRenameCategory) {
+      onRenameCategory(catId, editingCatLabel.trim());
+    }
+    setEditingCatId(null);
+    setEditingCatLabel('');
+    triggerHapticFeedback('success');
+  };
+
+  const handleDeleteCategory = (catId: string) => {
+    if (window.confirm('Delete this category? Products in this category will be preserved under general merchandise.')) {
+      if (onDeleteCategory) {
+        onDeleteCategory(catId);
+      }
+      triggerHapticFeedback('tap');
+    }
+  };
 
   // Item Profile Drawer State
   const [isItemDrawerOpen, setIsItemDrawerOpen] = useState(false);
@@ -83,7 +146,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
   // Auto-select first low stock item if pre-filtered to low stock
   const [selectedProductId, setSelectedProductId] = useState<string | null>(() => {
     if (initialFilterLowOnly) {
-      const firstLow = products.find((p) => p.stockQty <= p.lowStockThreshold);
+      const firstLow = products.find((p) => p.trackStock !== false && p.stockQty <= p.lowStockThreshold);
       if (firstLow) return firstLow.id;
     }
     return products[0]?.id || null;
@@ -92,7 +155,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
   React.useEffect(() => {
     if (initialFilterLowOnly) {
       setFilterLowOnly(true);
-      const firstLow = products.find((p) => p.stockQty <= p.lowStockThreshold);
+      const firstLow = products.find((p) => p.trackStock !== false && p.stockQty <= p.lowStockThreshold);
       if (firstLow) setSelectedProductId(firstLow.id);
     }
   }, [initialFilterLowOnly, products]);
@@ -108,7 +171,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
 
   // OCR Presets
   const [selectedPresetId, setSelectedPresetId] = useState<string>(
-    OCR_INVOICE_PRESETS[0].id
+    OCR_INVOICE_PRESETS[0]?.id || 'ocr-metro-wholesale'
   );
   const [isScanning, setIsScanning] = useState(false);
 
@@ -120,6 +183,8 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
     products.find((p) => p.id === selectedProductId) || products[0] || null;
 
   const getCategoryLabel = (catId: string) => {
+    const match = activeCategories.find((c) => c.id === catId);
+    if (match) return match.label || match.shortLabel;
     return getCategory(catId);
   };
 
@@ -130,15 +195,18 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.shortName.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q);
+        p.sku.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q));
       if (!matchesSearch) return false;
-      if (filterLowOnly) return p.stockQty <= p.lowStockThreshold;
+      if (filterLowOnly) {
+        return p.trackStock !== false && p.stockQty <= p.lowStockThreshold;
+      }
       return true;
     });
   }, [products, searchQuery, filterLowOnly]);
 
   const lowStockCount = useMemo(
-    () => products.filter((p) => p.stockQty <= p.lowStockThreshold).length,
+    () => products.filter((p) => p.trackStock !== false && p.stockQty <= p.lowStockThreshold).length,
     [products]
   );
 
@@ -197,13 +265,13 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
       >
         {/* Sticky Header: AI OCR Action + Search + Filter Pills */}
         <div className="shrink-0 p-3 border-b border-theme space-y-2.5 bg-surface">
-          {/* Top Actions: [+ Add New Item] & AI Camera OCR Stock-In CTA */}
+          {/* Top Actions: [+ Add New Item], [🏷️ Categories], & AI Camera OCR Stock-In CTA */}
           {canEditInventory ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={handleOpenNewItem}
-                className="flex-1 min-h-[38px] px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wide flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition cursor-pointer"
+                className="flex-1 min-h-[38px] px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wide flex items-center justify-center gap-1 shadow-sm active:scale-95 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>{t('inventory.add_new_item')}</span>
@@ -213,9 +281,22 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                 type="button"
                 onClick={() => {
                   triggerHapticFeedback('tap');
+                  setIsCategoryModalOpen(true);
+                }}
+                className="min-h-[38px] px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1 shrink-0 shadow-sm active:scale-95 transition cursor-pointer"
+                title="Manage Store Categories"
+              >
+                <Tag className="w-3.5 h-3.5 text-sky-400" />
+                <span>Categories</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHapticFeedback('tap');
                   onOpenOcrModal();
                 }}
-                className="min-h-[38px] px-3 rounded-xl bg-[#006AFF] hover:bg-blue-600 text-white font-black text-xs uppercase tracking-wide flex items-center gap-1 shrink-0 shadow-sm active:scale-95 transition cursor-pointer"
+                className="min-h-[38px] px-2.5 rounded-xl bg-[#006AFF] hover:bg-blue-600 text-white font-black text-xs uppercase tracking-wide flex items-center gap-1 shrink-0 shadow-sm active:scale-95 transition cursor-pointer"
                 title="Snap wholesaler invoice to auto-commit"
               >
                 <Camera className="w-3.5 h-3.5 stroke-[2.25]" />
@@ -286,7 +367,8 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
             </div>
           ) : (
             filteredProducts.map((item) => {
-              const isLow = item.stockQty <= item.lowStockThreshold;
+              const isTracked = item.trackStock !== false;
+              const isLow = isTracked && item.stockQty <= item.lowStockThreshold;
               const isSelected = selectedProduct?.id === item.id;
               const catLabel = getCategoryLabel(item.category);
 
@@ -337,15 +419,17 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     <div className="text-right">
                       <span
                         className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] border ${
-                          isLow
-                            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40'
-                            : 'bg-surface-muted text-primary border-theme'
+                          !isTracked
+                            ? 'bg-blue-500/15 text-blue-500 border-blue-500/30'
+                            : isLow
+                              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40'
+                              : 'bg-surface-muted text-primary border-theme'
                         }`}
                       >
-                        {item.stockQty} {pluralUnit(item.unit, item.stockQty)}
+                        {!isTracked ? 'Service' : `${item.stockQty} ${pluralUnit(item.unit, item.stockQty)}`}
                       </span>
                       <div className="font-mono font-black text-xs text-primary mt-1">
-                        {formatPesoExact(item.sellingPrice)}
+                        {formatCurrencyExact(item.sellingPrice)}
                       </div>
                     </div>
 
@@ -399,12 +483,16 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     </h2>
                     <span
                       className={`px-2 py-0.5 rounded font-mono font-bold text-[10px] uppercase border ${
-                        selectedProduct.stockQty <= selectedProduct.lowStockThreshold
+                        selectedProduct.trackStock === false
+                          ? 'bg-blue-500/15 text-blue-500 border-blue-500/30'
+                          : selectedProduct.stockQty <= selectedProduct.lowStockThreshold
                           ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40'
                           : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
                       }`}
                     >
-                      {selectedProduct.stockQty <= selectedProduct.lowStockThreshold
+                      {selectedProduct.trackStock === false
+                        ? 'Service / Unlimited'
+                        : selectedProduct.stockQty <= selectedProduct.lowStockThreshold
                         ? 'Low Stock'
                         : 'In Stock'}
                     </span>
@@ -478,13 +566,21 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     {t('inventory.current_on_hand')}
                   </span>
                   <div className="text-2xl font-mono font-black text-primary mt-1">
-                    {selectedProduct.stockQty}{' '}
-                    <span className="text-xs font-normal text-muted">
-                      {pluralUnit(selectedProduct.unit, selectedProduct.stockQty)}
-                    </span>
+                    {selectedProduct.trackStock === false ? (
+                      'Unlimited'
+                    ) : (
+                      <>
+                        {selectedProduct.stockQty}{' '}
+                        <span className="text-xs font-normal text-muted">
+                          {pluralUnit(selectedProduct.unit, selectedProduct.stockQty)}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <span className="text-[10px] font-mono text-muted block mt-1">
-                    {t('inventory.min_alert')}: {selectedProduct.lowStockThreshold}
+                    {selectedProduct.trackStock === false
+                      ? 'Non-inventory service'
+                      : `${t('inventory.min_alert')}: ${selectedProduct.lowStockThreshold}`}
                   </span>
                 </div>
 
@@ -493,7 +589,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                     {t('inventory.retail_srp')}
                   </span>
                   <div className="text-2xl font-mono font-black text-primary mt-1">
-                    {formatPesoExact(selectedProduct.sellingPrice)}
+                    {formatCurrencyExact(selectedProduct.sellingPrice)}
                   </div>
                   <span className="text-[10px] font-mono text-muted block mt-1">
                     Customer price
@@ -531,7 +627,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
                   </div>
                   <span className="text-[10px] font-mono text-emerald-btn block mt-1">
                     {canViewMargins ? (
-                      `+${formatPesoExact(selectedProduct.sellingPrice - selectedProduct.wholesaleCost)} ${t('inventory.profit_per_unit')}`
+                      `+${formatCurrencyExact(selectedProduct.sellingPrice - selectedProduct.wholesaleCost)} ${t('inventory.profit_per_unit')}`
                     ) : (
                       'Restricted for role 🔒'
                     )}
@@ -793,7 +889,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
               <div className="rounded-xl p-2.5 bg-surface-muted border border-theme">
                 <span className="text-[10px] font-bold uppercase text-muted block">Price</span>
                 <span className="text-base font-mono font-black text-primary">
-                  {formatPeso(selectedProduct.sellingPrice)}
+                  {formatCurrency(selectedProduct.sellingPrice)}
                 </span>
               </div>
               <div className="rounded-xl p-2.5 bg-surface-muted border border-theme">
@@ -1007,13 +1103,165 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
               triggerHapticFeedback('success');
               onCommitOcrInvoice(activePreset);
             }}
-            className="w-full min-h-[52px] rounded-xl bg-emerald-btn hover:opacity-95 text-white font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] transition"
+            className="w-full min-h-[52px] rounded-xl bg-emerald-btn hover:opacity-95 text-white font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] transition cursor-pointer"
           >
             <PackagePlus className="w-5 h-5 stroke-[2.25]" />
             <span>1-Tap Commit Stock &amp; Update Margins</span>
           </button>
         </div>
       </NativeModal>
+
+      {/* Category Manager Modal */}
+      {isCategoryModalOpen && (
+        <NativeModal
+          isOpen={isCategoryModalOpen}
+          onClose={() => setIsCategoryModalOpen(false)}
+          title="🏷️ Manage Store Categories"
+          subtitle="Create, rename, or delete custom categories across Register and Inventory"
+        >
+          <div className="space-y-5 text-left p-1">
+            {/* Create New Category Form */}
+            <form onSubmit={handleCreateCategory} className="p-4 rounded-xl bg-surface-muted border border-theme space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted block">
+                + Add New Category
+              </span>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="e.g. Hair Services, Pastries, Apparel, Electronics"
+                  className="w-full px-3 py-2 rounded-lg bg-surface border border-theme text-primary text-xs focus:outline-none focus:border-[#006AFF]"
+                  required
+                />
+
+                {/* Quick Emoji selection */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-muted mr-1">Icon:</span>
+                  {['🏷️', '🥤', '🥨', '☕', '🥐', '✂️', '💆', '📦', '🧴', '👗', '💻', '🥪'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setNewCatEmoji(emoji)}
+                      className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center transition cursor-pointer ${
+                        newCatEmoji === emoji ? 'bg-blue-600/20 ring-1 ring-blue-500 scale-105' : 'bg-surface hover:bg-surface-muted'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Color Palette */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-muted mr-1">Color:</span>
+                  {['#0284C7', '#10B981', '#EA580C', '#E11D48', '#8B5CF6', '#EC4899', '#F59E0B', '#4F46E5', '#64748B'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setNewCatColor(color)}
+                      className={`w-5 h-5 rounded-full transition cursor-pointer ${
+                        newCatColor === color ? 'ring-2 ring-primary scale-110' : 'opacity-70 hover:opacity-100'
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 rounded-lg bg-[#006AFF] hover:bg-blue-600 text-white font-bold text-xs uppercase tracking-wide transition active:scale-98 shadow-sm cursor-pointer"
+                >
+                  Create Category
+                </button>
+              </div>
+            </form>
+
+            {/* List of Existing Categories */}
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted block">
+                Existing Categories ({activeCategories.filter(c => c.id !== 'favorites').length})
+              </span>
+
+              {activeCategories.filter(c => c.id !== 'favorites').map((cat) => {
+                const count = products.filter((p) => p.category === cat.id).length;
+                const isEditing = editingCatId === cat.id;
+
+                return (
+                  <div
+                    key={cat.id}
+                    className="p-2.5 rounded-xl bg-surface border border-theme flex items-center justify-between gap-2"
+                  >
+                    {isEditing ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          type="text"
+                          value={editingCatLabel}
+                          onChange={(e) => setEditingCatLabel(e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface-muted border border-theme text-xs text-primary focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveRename(cat.id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 transition cursor-pointer"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCatId(null)}
+                          className="px-2.5 py-1.5 rounded-lg bg-surface-muted text-muted text-xs hover:text-primary transition cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ backgroundColor: cat.color || '#0284C7' }}
+                          />
+                          <span className="text-base">{cat.emoji}</span>
+                          <span className="text-xs font-bold text-primary truncate">
+                            {cat.label || cat.shortLabel}
+                          </span>
+                          <span className="text-[10px] font-mono text-muted bg-surface-muted px-1.5 py-0.5 rounded border border-theme">
+                            {count} {count === 1 ? 'item' : 'items'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCatId(cat.id);
+                              setEditingCatLabel(cat.label || cat.shortLabel);
+                            }}
+                            className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-muted transition cursor-pointer"
+                            title="Rename Category"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.id)}
+                            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                            title="Delete Category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </NativeModal>
+      )}
 
       {/* Item Profile Slide-Out Drawer / Modal */}
       <ItemProfileDrawer
@@ -1023,6 +1271,7 @@ export const InventoryHub: React.FC<InventoryHubProps> = React.memo(({
         environmentMode={environmentMode}
         canEditInventory={canEditInventory}
         canViewMargins={canViewMargins}
+        categories={activeCategories}
         onSave={(savedProduct, isNew) => {
           if (onSaveProductProfile) {
             onSaveProductProfile(savedProduct, isNew);

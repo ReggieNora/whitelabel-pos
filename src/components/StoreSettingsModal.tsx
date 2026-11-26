@@ -22,10 +22,12 @@ import {
   StaffPermissions,
   DEFAULT_CASHIER_PERMISSIONS,
   DEFAULT_MANAGER_PERMISSIONS,
+  CatalogPresetType,
 } from '../types/pos';
 import { NativeModal } from './NativeModal';
 import { triggerHapticFeedback, getGlobalCurrency } from '../utils/localDb';
 import { brandConfig } from '../config/brandConfig';
+import { PRESET_OPTIONS } from '../data/catalogPresets';
 
 interface StoreSettingsModalProps {
   isOpen: boolean;
@@ -41,6 +43,8 @@ interface StoreSettingsModalProps {
   googleUser?: any;
   initialTab?: 'PROFILE' | 'STAFF';
   onUpdateCurrency?: (symbol: string) => void;
+  onSwitchDemoIndustry?: (preset: CatalogPresetType) => void;
+  activeIndustryPreset?: CatalogPresetType;
 }
 
 export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
@@ -57,6 +61,8 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
   googleUser,
   initialTab = 'STAFF',
   onUpdateCurrency,
+  onSwitchDemoIndustry,
+  activeIndustryPreset,
 }) => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'STAFF'>(initialTab);
 
@@ -504,6 +510,41 @@ export const StoreSettingsModal: React.FC<StoreSettingsModalProps> = ({
                   })}
                 </div>
               </div>
+
+              {/* Demo Mode Industry Switcher */}
+              {storeProfile.environment === 'DEMO' && onSwitchDemoIndustry && (
+                <div className="pt-2 border-t border-theme space-y-1.5">
+                  <span className="text-muted block text-[11px] font-bold uppercase tracking-wider">
+                    Interactive Demo Industry Catalog:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PRESET_OPTIONS.map((p) => {
+                      const isActive = activeIndustryPreset === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            triggerHapticFeedback('tap');
+                            onSwitchDemoIndustry(p.id);
+                          }}
+                          className={`p-2.5 rounded-xl border text-left transition text-xs flex items-center gap-2 cursor-pointer ${
+                            isActive
+                              ? 'bg-blue-600/20 text-blue-500 border-blue-500 font-bold shadow-sm'
+                              : 'bg-surface border-theme text-primary hover:border-slate-400'
+                          }`}
+                        >
+                          <span className="text-lg">{p.icon}</span>
+                          <div className="min-w-0">
+                            <div className="font-bold truncate">{p.title}</div>
+                            <div className="text-[10px] text-muted truncate">{p.tagline}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
             </div>
 

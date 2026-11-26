@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Product, CategoryId, EnvironmentMode } from '../types/pos';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Product, CategoryId, EnvironmentMode, CategoryMeta } from '../types/pos';
 import { getGlobalCurrency, formatCurrencyExact } from '../utils/localDb';
 import { CATEGORIES } from '../data/mockSariSariData';
 import { uploadProductImage } from '../utils/supabaseStorage';
@@ -13,7 +13,9 @@ import {
   Check, 
   Loader2, 
   Package, 
-  AlertCircle 
+  AlertCircle,
+  PlusCircle,
+  Tag
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -25,18 +27,24 @@ interface ItemProfileDrawerProps {
   onSave: (product: Product, isNew: boolean) => void;
   canEditInventory?: boolean;
   canViewMargins?: boolean;
+  categories?: CategoryMeta[];
 }
 
-// Category accent colors matching register
-const CATEGORY_COLORS: Record<string, string> = {
-  beverages: '#0284C7',
-  soap: '#0D9488',
-  noodles: '#E11D48',
-  tobacco: '#D97706',
-  rice: '#059669',
-  snacks: '#EA580C',
-  favorites: '#F59E0B',
-};
+// Preset color options for custom categories
+const CATEGORY_COLOR_PALETTE = [
+  '#0284C7', // Sky Blue
+  '#10B981', // Emerald Green
+  '#EA580C', // Orange
+  '#E11D48', // Rose / Red
+  '#8B5CF6', // Purple
+  '#EC4899', // Pink
+  '#F59E0B', // Amber
+  '#4F46E5', // Indigo
+  '#0891B2', // Cyan
+  '#64748B', // Slate
+];
+
+const UNIT_SUGGESTION_CHIPS = ['unit', 'item', 'session', 'hr', 'box', 'cup', 'lb', 'oz'];
 
 export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
   isOpen,
@@ -46,19 +54,30 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
   onSave,
   canEditInventory = true,
   canViewMargins = true,
+  categories = CATEGORIES,
 }) => {
   const { t, getCategory } = useLanguage();
   const isNew = !product;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Available selectable store categories (memoized to prevent render loops)
+  const storeCategories = useMemo(
+    () => categories.filter((c) => c.id !== 'favorites'),
+    [categories]
+  );
+
   // Form State
   const [name, setName] = useState('');
   const [shortName, setShortName] = useState('');
-  const [category, setCategory] = useState<Exclude<CategoryId, 'favorites'>>('snacks');
-  const [unit, setUnit] = useState('pack');
+  const [isCustomCategoryMode, setIsCustomCategoryMode] = useState(false);
+  const [category, setCategory] = useState<string>('beverages');
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [selectedColor, setSelectedColor] = useState<string>('#0284C7');
+  const [unit, setUnit] = useState('item');
   const [sku, setSku] = useState('');
   const [price, setPrice] = useState<number | string>(0);
   const [wholesaleCost, setWholesaleCost] = useState<number | string>(0);
+  const [trackStock, setTrackStock] = useState(true);
   const [stock, setStock] = useState<number | string>(0);
   const [lowStockThreshold, setLowStockThreshold] = useState<number | string>(5);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -68,19 +87,32 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Selectable categories excluding 'favorites' meta-category
-  const selectableCategories = CATEGORIES.filter((c) => c.id !== 'favorites');
-
-  // Initialize or reset form when modal opens or product changes
+  // Initialize or reset form only when modal opens or a different product is selected
   useEffect(() => {
+    if (!isOpen) return;
+
     if (product) {
       setName(product.name || '');
       setShortName(product.shortName || product.name || '');
-      setCategory(product.category || 'snacks');
-      setUnit(product.unit || 'pack');
+      
+      const existingMatch = categories.find((c) => c.id === product.category);
+      if (existingMatch) {
+        setIsCustomCategoryMode(false);
+        setCategory(product.category);
+        setCustomCategoryName('');
+        setSelectedColor(product.accentColor || existingMatch.color || '#0284C7');
+      } else {
+        setIsCustomCategoryMode(true);
+        setCategory(product.category || 'general');
+        setCustomCategoryName(product.category || '');
+        setSelectedColor(product.accentColor || '#0284C7');
+      }
+
+      setUnit(product.unit || 'item');
       setSku(product.sku || '');
       setPrice(product.sellingPrice ?? 0);
       setWholesaleCost(product.wholesaleCost ?? 0);
+      setTrackStock(product.trackStock ?? true);
       setStock(product.stockQty ?? 0);
       setLowStockThreshold(product.lowStockThreshold ?? 5);
       setIsFavorite(Boolean(product.isFavorite));
@@ -88,18 +120,23 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
     } else {
       setName('');
       setShortName('');
-      setCategory('snacks');
-      setUnit('pack');
+      const defaultCat = categories.find((c) => c.id !== 'favorites')?.id || 'beverages';
+      setIsCustomCategoryMode(false);
+      setCategory(defaultCat);
+      setCustomCategoryName('');
+      setSelectedColor('#0284C7');
+      setUnit('item');
       setSku(`SKU-${Date.now().toString().slice(-6)}`);
       setPrice(0);
       setWholesaleCost(0);
+      setTrackStock(true);
       setStock(10);
       setLowStockThreshold(5);
       setIsFavorite(false);
       setImageUrl('');
     }
     setUploadError(null);
-  }, [product, isOpen]);
+  }, [product?.id, isOpen]);
 
   // Handle Photo File Pick
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,15 +170,12 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
     setUploadError(null);
   };
 
-  // Calculations for Kita and Margin
+  // Calculations for Margin
   const numPrice = Number(price) || 0;
   const numCost = Number(wholesaleCost) || 0;
-  const kita = numPrice - numCost;
-  const marginPct = numPrice > 0 ? (kita / numPrice) * 100 : 0;
-  const isProfit = kita >= 0;
-
-  // Category Theme Color Helper
-  const categoryColor = CATEGORY_COLORS[category] || '#0284C7';
+  const marginAmt = numPrice - numCost;
+  const marginPct = numPrice > 0 ? (marginAmt / numPrice) * 100 : 0;
+  const isProfit = marginAmt >= 0;
 
   // Save handler
   const handleSave = (e: React.FormEvent) => {
@@ -155,6 +189,11 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
     const finalShortName = shortName.trim() || trimmedName.slice(0, 18);
     const finalSku = sku.trim() || `SKU-${Date.now().toString().slice(-6)}`;
 
+    // Resolve Category
+    const finalCategory = isCustomCategoryMode
+      ? customCategoryName.trim().toLowerCase().replace(/\s+/g, '_') || 'custom'
+      : category;
+
     const savedProduct: Product = {
       ...(product || {
         hourlyVelocity: 0,
@@ -165,14 +204,15 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
       name: trimmedName,
       shortName: finalShortName,
       sku: finalSku,
-      category,
-      unit: unit.trim() || 'piece',
+      category: finalCategory,
+      unit: unit.trim() || 'item',
       sellingPrice: numPrice,
       wholesaleCost: numCost,
-      stockQty: Number(stock) || 0,
-      lowStockThreshold: Number(lowStockThreshold) || 5,
+      trackStock,
+      stockQty: trackStock ? Number(stock) || 0 : 999,
+      lowStockThreshold: trackStock ? Number(lowStockThreshold) || 5 : 0,
       isFavorite,
-      accentColor: categoryColor,
+      accentColor: selectedColor,
       icon: imageUrl || product?.icon || '📦',
       imageUrl: imageUrl || undefined,
       image_url: imageUrl || undefined,
@@ -198,7 +238,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
           <div className="flex items-center space-x-3">
             <div 
               className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20 shrink-0"
-              style={{ backgroundColor: categoryColor }}
+              style={{ backgroundColor: selectedColor }}
             />
             <div className="min-w-0">
               <h2 id="drawer-title" className="text-lg font-bold text-white tracking-wide truncate">
@@ -211,7 +251,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
             title="Close Drawer"
             type="button"
           >
@@ -226,7 +266,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
             <div className="relative group">
               <div 
                 className="w-32 h-32 rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-800 flex items-center justify-center shadow-inner relative transition-transform hover:scale-[1.02]"
-                style={{ borderColor: imageUrl ? categoryColor : undefined }}
+                style={{ borderColor: imageUrl ? selectedColor : undefined }}
               >
                 {imageUrl ? (
                   <img
@@ -249,25 +289,25 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                 )}
               </div>
 
-              {/* Quick Trigger Floating Camera Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="absolute -bottom-2 -right-2 p-2.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-white rounded-full shadow-lg ring-4 ring-slate-900 transition-all cursor-pointer"
-                title={t('item_profile.upload_photo')}
-              >
-                <Camera className="w-4 h-4" />
-              </button>
+              {/* Quick Remove Button */}
+              {imageUrl && !isUploading && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-500/90 text-white shadow-md hover:bg-rose-600 transition cursor-pointer"
+                  title="Remove Image"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* Hidden File Input (supports direct camera on mobile/tablet) */}
+            {/* Hidden File Input */}
             <input
-              ref={fileInputRef}
               type="file"
-              accept="image/*"
-              capture="environment"
+              ref={fileInputRef}
               onChange={handleFileChange}
+              accept="image/*"
               className="hidden"
             />
 
@@ -277,21 +317,11 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5" />
+                <Camera className="w-3.5 h-3.5 text-sky-400" />
                 <span>{imageUrl ? t('item_profile.replace_photo') : t('item_profile.upload_photo')}</span>
               </button>
-              {imageUrl && (
-                <button
-                  type="button"
-                  onClick={handleRemovePhoto}
-                  className="flex items-center space-x-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{t('item_profile.remove_photo')}</span>
-                </button>
-              )}
             </div>
 
             {uploadError && (
@@ -326,7 +356,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                     setShortName(e.target.value.slice(0, 18));
                   }
                 }}
-                placeholder="e.g. Kopiko Blanca 30g, Lucky Me Pancit Canton"
+                placeholder="e.g. Bottled Water 500ml, Signature Haircut, Espresso"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
               />
@@ -341,42 +371,117 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                 type="text"
                 value={shortName}
                 onChange={(e) => setShortName(e.target.value)}
-                placeholder="e.g. Kopiko Blanca (fits on tile)"
+                placeholder="e.g. Bottled Water (fits on tile)"
                 maxLength={24}
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
               />
             </div>
 
-            {/* Category & Unit */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            {/* CATEGORY SELECTOR & CUSTOM CREATOR */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-300">
                   {t('item_profile.category')}
                 </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomCategoryMode(!isCustomCategoryMode)}
+                  className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                >
+                  <Tag className="w-3 h-3" />
+                  <span>{isCustomCategoryMode ? 'Pick Existing' : '+ Custom Category'}</span>
+                </button>
+              </div>
+
+              {isCustomCategoryMode ? (
+                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700 space-y-2.5">
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Type Custom Category Name:
+                    </label>
+                    <input
+                      type="text"
+                      value={customCategoryName}
+                      onChange={(e) => setCustomCategoryName(e.target.value)}
+                      placeholder="e.g. Electronics, Hair Services, Pastries, Apparel"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+
+                  {/* Customizable category color badge */}
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1.5">
+                      Category Color Badge:
+                    </label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {CATEGORY_COLOR_PALETTE.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setSelectedColor(color)}
+                          className={`w-6 h-6 rounded-full transition-transform cursor-pointer ${
+                            selectedColor === color ? 'ring-2 ring-white scale-110' : 'opacity-80 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as Exclude<CategoryId, 'favorites'>)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__custom__') {
+                      setIsCustomCategoryMode(true);
+                    } else {
+                      setCategory(val);
+                      const match = storeCategories.find((c) => c.id === val);
+                      if (match?.color) setSelectedColor(match.color);
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm cursor-pointer"
                 >
-                  {selectableCategories.map((cat) => (
+                  {storeCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.emoji} {getCategory(cat.id)}
                     </option>
                   ))}
+                  <option value="__custom__">+ Add Custom Category...</option>
                 </select>
-              </div>
+              )}
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {t('item_profile.unit_label')}
-                </label>
-                <input
-                  type="text"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  placeholder="sachet, bottle, pc, pack, kg"
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
-                />
+            {/* UNIT / SELLING TYPE FIELD WITH QUICK-TAP CHIPS */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-300">
+                Unit / Selling Type
+              </label>
+              <input
+                type="text"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="e.g. unit, item, session, hr, box, cup, lb, oz"
+                className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
+              />
+
+              {/* Quick-tap suggestion chips */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                {UNIT_SUGGESTION_CHIPS.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => setUnit(chip)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                      unit === chip
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-400 font-bold'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -389,7 +494,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                 type="text"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                placeholder="Scan or type barcode"
+                placeholder="Scan or type barcode / SKU"
                 className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono"
               />
             </div>
@@ -410,7 +515,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">{getGlobalCurrency()}</span>
                   <input
                     type="number"
-                    step="0.25"
+                    step="0.01"
                     min="0"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
@@ -422,7 +527,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
-                  <span>{t('item_profile.cost_puhunan')}</span>
+                  <span>Unit Wholesale Cost</span>
                   {!canViewMargins && <span className="text-[10px] text-amber-400 font-mono">🔒 Restricted</span>}
                 </label>
                 <div className="relative">
@@ -430,7 +535,7 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                   {canViewMargins ? (
                     <input
                       type="number"
-                      step="0.25"
+                      step="0.01"
                       min="0"
                       value={wholesaleCost}
                       onChange={(e) => setWholesaleCost(e.target.value)}
@@ -461,12 +566,12 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
                 <div className="flex items-center space-x-2">
                   <TrendingUp className={`w-4 h-4 ${isProfit ? 'text-emerald-400' : 'text-rose-400 rotate-180'}`} />
                   <span className="text-xs font-medium">
-                    {isProfit ? `${t('item_profile.kita_margin')}:` : `${t('item_profile.lugi_margin')}:`}
+                    {isProfit ? 'Gross Profit Margin:' : 'Loss:'}
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-base font-extrabold tracking-tight">
-                    {isProfit ? getGlobalCurrency() : `-${getGlobalCurrency()}`}{Math.abs(kita).toFixed(2)}
+                    {isProfit ? getGlobalCurrency() : `-${getGlobalCurrency()}`}{Math.abs(marginAmt).toFixed(2)}
                   </span>
                   <span className="text-xs font-semibold ml-1.5 opacity-90">
                     ({marginPct.toFixed(1)}% margin)
@@ -481,39 +586,74 @@ export const ItemProfileDrawer: React.FC<ItemProfileDrawerProps> = ({
             )}
           </div>
 
-          {/* INVENTORY CONTROLS & FAVORITE */}
+          {/* INVENTORY CONTROLS & TRACK STOCK TOGGLE */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1">
-              {t('item_profile.inventory_pinning')}
+              Inventory &amp; Stock Tracking
             </h3>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {t('item_profile.current_stock')}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
-                />
+            {/* TRACK INVENTORY STOCK TOGGLE */}
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/80">
+              <div className="pr-4">
+                <div className="text-sm font-semibold text-white">Track Inventory Stock</div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Turn off for services, haircuts, consulting, or made-to-order food.
+                </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {t('item_profile.low_stock_alert')}
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={lowStockThreshold}
-                  onChange={(e) => setLowStockThreshold(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              <button
+                type="button"
+                role="switch"
+                aria-checked={trackStock}
+                onClick={() => setTrackStock(!trackStock)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  trackStock ? 'bg-sky-500' : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    trackStock ? 'translate-x-5' : 'translate-x-0'
+                  }`}
                 />
-              </div>
+              </button>
             </div>
+
+            {/* Conditional Stock Fields */}
+            {trackStock ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    {t('item_profile.current_stock')}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    {t('item_profile.low_stock_alert')}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={lowStockThreshold}
+                    onChange={(e) => setLowStockThreshold(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-xs flex items-center gap-2">
+                <span className="text-base">♾️</span>
+                <span>
+                  <strong>Non-Inventory Service:</strong> Unlimited checkout without decrementing stock counts. Low-stock warnings are disabled.
+                </span>
+              </div>
+            )}
 
             {/* Pin as Top Favorite Toggle */}
             <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/80">

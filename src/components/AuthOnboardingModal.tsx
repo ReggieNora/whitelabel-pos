@@ -810,7 +810,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 placeholder={
                   existingLiveStore
                     ? existingLiveStore.profile.storeName
-                    : "e.g., Aling Nena's Sari-Sari or 0917..."
+                    : `e.g., Downtown Branch or +1-555-0100...`
                 }
                 className="w-full min-h-[48px] px-3.5 rounded-xl bg-surface-muted border border-theme text-sm font-bold text-primary focus:outline-none focus:border-[#2563EB]"
               />
